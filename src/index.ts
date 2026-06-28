@@ -15,7 +15,7 @@
  * ```
  */
 
-import type { Plugin } from "@opencode-ai/plugin";
+import type { Plugin, PluginModule } from "@opencode-ai/plugin";
 
 import { resolveOptions } from "./config.js";
 import { loadPatterns } from "./classify/loader.js";
@@ -65,7 +65,21 @@ const plugin: Plugin = async (input, options) => {
   };
 };
 
-export default plugin;
+/**
+ * V1 plugin module format (recommended by opencode).
+ *
+ * opencode's loader first tries the V1 shape (`{ id, server }`); only if that
+ * fails does it fall back to the "legacy" path that requires EVERY named export
+ * to be a function. We export several non-function values (VERSION string,
+ * BUILT_IN_PATTERNS array) for programmatic use, so we MUST use V1 to avoid the
+ * legacy path throwing "Plugin export is not a function".
+ */
+const pluginModule: PluginModule = {
+  id: "@zademy/opencode-error-explainer",
+  server: plugin,
+};
+
+export default pluginModule;
 export { VERSION } from "./version.js";
 export type { PluginOptions } from "./config.js";
 export type {
