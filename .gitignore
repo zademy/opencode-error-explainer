@@ -1,0 +1,14 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+.DS_Store
+*.log
+npm-debug.log*
+
+# Generated error artifacts + opencode local config (never commit a user's debugging session)
+.opencode/
+
+# Lockfile kept; uncomment to ignore if you prefer npm-shrinkwrap over package-lock
+# package-lock.json

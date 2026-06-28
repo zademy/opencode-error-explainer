@@ -1,0 +1,66 @@
+{
+  "name": "@zademy/opencode-error-explainer",
+  "version": "0.1.0",
+  "description": "An OpenCode plugin that detects failed terminal commands, classifies common errors, and explains them to the AI so debugging is faster.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "dev": "tsup src/index.ts --format esm --target node20 --watch --out-dir dist --dts",
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "terminal",
+    "errors",
+    "debugging",
+    "ai-coding",
+    "error-explainer",
+    "zademy"
+  ],
+  "author": "Zademy",
+  "license": "MIT",
+  "homepage": "https://zademy.com",
+  "bugs": {
+    "url": "https://github.com/zademy/opencode-error-explainer/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zademy/opencode-error-explainer.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "peerDependencies": {
+    "@opencode-ai/plugin": ">=1.17.0",
+    "zod": ">=3.23.0"
+  },
+  "devDependencies": {
+    "@opencode-ai/plugin": "^1.17.11",
+    "@types/node": "^22.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^2.0.0",
+    "zod": "^4.0.0"
+  }
+}
