@@ -5,6 +5,17 @@ All notable changes to **@zademy/opencode-error-explainer** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-06-28
+
+### Fixed
+- Plugin failed to load in opencode with `"Plugin export is not a function"`.
+  Root cause: opencode's loader falls back to a "legacy" path that requires
+  every named export to be a function, but this package also exports `VERSION`
+  (string) and `BUILT_IN_PATTERNS` (array) for programmatic use. Switched the
+  default export to the recommended **V1 plugin module** shape
+  (`{ id, server }`), which the loader detects first and which isolates the
+  plugin entry point from the other public exports.
+
 ## [0.1.0] - 2026-06-28
 
 ### Added
