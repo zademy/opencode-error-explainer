@@ -97,8 +97,12 @@ export function createToolAfterHandler(
     // ── Gather context (each pass is throw-safe; failure omits only its section) ──
     const frames = await gatherFrames(stamped, options, worktree, log);
     const git = options.gitContext ? gatherGit(worktree) : emptyGit();
-    const os = gatherOs();
-    const runtime = gatherRuntime(stamped.stack);
+    const os = options.runtimeContext
+      ? gatherOs()
+      : { name: "unknown", version: null, arch: null };
+    const runtime = options.runtimeContext
+      ? gatherRuntime(stamped.stack)
+      : { name: "node", version: null };
     const breadcrumbs = options.breadcrumbs
       ? await gatherBreadcrumbs(
           client,
@@ -164,7 +168,10 @@ export function createToolAfterHandler(
           log(`[error-explainer] write failed: ${errSummary(err)}`),
         );
         if (options.historyLimit > 0) {
-          await appendHistory(outputDir, stamped, {
+          const historyClass = options.redact
+            ? redactClassification(stamped)
+            : stamped;
+          await appendHistory(outputDir, historyClass, {
             limit: options.historyLimit,
             onError: (err) =>
               log(`[error-explainer] history failed: ${errSummary(err)}`),
@@ -189,7 +196,7 @@ export function createToolAfterHandler(
       file: stamped.file ?? null,
       line: stamped.line ?? null,
       fingerprint: fingerprint || null,
-      times_seen: null,
+      times_seen: frequency?.times_seen ?? null,
     };
 
     // Inline append (minimal by default — full report lives in the artifact/tool).
@@ -219,11 +226,18 @@ async function gatherFrames(
   return frames;
 }
 
-/** Redact raw output + any source-context lines carried by the event. */
+/**
+ * Redact every persisted string that may carry user/runtime output.
+ *
+ * Covers: logger (command), extra.command, extra.matched_lines,
+ * extra.raw_output_excerpts, exception value, source context lines, and
+ * breadcrumb messages/commands. A missed field leaks secrets to disk.
+ */
 function redactEvent(event: ReturnType<typeof assembleEvent>, redact: boolean) {
   if (!redact) return event;
   const values = event.exception.values.map((v) => ({
     ...v,
+    value: v.value ? redactSecrets(v.value) : v.value,
     stacktrace: {
       frames: v.stacktrace.frames.map((f) =>
         f.context
@@ -238,15 +252,44 @@ function redactEvent(event: ReturnType<typeof assembleEvent>, redact: boolean) {
       ),
     },
   }));
+  const breadcrumbs = event.breadcrumbs.map((b) => ({
+    ...b,
+    message: redactSecrets(b.message),
+    data: { ...b.data, command: redactSecrets(b.data.command) },
+  }));
+  const redactStrings = (val: unknown): unknown =>
+    Array.isArray(val)
+      ? val.map(redactStrings)
+      : typeof val === "string"
+        ? redactSecrets(val)
+        : val;
   return {
     ...event,
+    logger: redactSecrets(event.logger),
     exception: { values },
+    breadcrumbs,
     extra: {
       ...event.extra,
+      command: redactStrings(event.extra.command),
+      matched_lines: redactStrings(event.extra.matched_lines),
       raw_output_excerpts: (
         event.extra.raw_output_excerpts as string[] | undefined
       )?.map(redactSecrets),
     },
+  };
+}
+
+/**
+ * Redact the string fields of a Classification before it is serialized to the
+ * history ring buffer. The history file must not leak secrets any more than the
+ * full event artifact does.
+ */
+function redactClassification(c: Classification): Classification {
+  return {
+    ...c,
+    command: redactSecrets(c.command),
+    matchedLines: c.matchedLines.map(redactSecrets),
+    raw: redactSecrets(c.raw),
   };
 }
 

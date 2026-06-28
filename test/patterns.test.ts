@@ -101,4 +101,42 @@ describe("mergeCustomPatterns", () => {
     expect(merged.find((p) => p.id === "regex_obj")).toBeDefined();
     expect(merged.find((p) => p.id === "string_pat")?.pattern.flags).toBe("i");
   });
+
+  // ── Stateful flag stripping (g/y) ─────────────────────────────────────────
+  it("strips g/y flags from RegExp-source patterns to prevent stateful .test()", () => {
+    const customs = [
+      {
+        id: "stateful_regex",
+        type: "t",
+        suggestion: "s",
+        pattern: /SIG/giy,
+        stack: "generic",
+      },
+    ];
+    const merged = mergeCustomPatterns(BUILT_IN_PATTERNS, customs);
+    const p = merged.find((x) => x.id === "stateful_regex");
+    expect(p).toBeDefined();
+    expect(p!.pattern.flags).not.toContain("g");
+    expect(p!.pattern.flags).not.toContain("y");
+    // Repeated .test() must match every time (no lastIndex drift).
+    for (let i = 0; i < 5; i++) {
+      expect(p!.pattern.test("line with SIG here")).toBe(true);
+    }
+  });
+
+  it("strips g/y from string-sourced patterns with explicit flags", () => {
+    const customs = [
+      {
+        id: "stateful_str",
+        type: "t",
+        suggestion: "s",
+        pattern: "MY_SIG",
+        flags: "gi",
+        stack: "generic",
+      },
+    ];
+    const merged = mergeCustomPatterns(BUILT_IN_PATTERNS, customs);
+    const p = merged.find((x) => x.id === "stateful_str");
+    expect(p!.pattern.flags).toBe("i"); // g stripped, i preserved
+  });
 });

@@ -31,7 +31,7 @@ describe("frequency index", () => {
     await recordFrequency(dir, "fp1", "2024-01-01T00:00:00.000Z");
     const index = await readIndex(dir);
     expect(index.fp1).toBeDefined();
-    expect(index.fp1.times_seen).toBe(1);
+    expect(index.fp1!.times_seen).toBe(1);
   });
 
   it("returns an empty index when the file is missing or corrupt", async () => {

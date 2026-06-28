@@ -11,19 +11,31 @@
  */
 
 import { readFile } from "node:fs/promises";
-import { isAbsolute, resolve as resolvePath } from "node:path";
+import { isAbsolute, relative, resolve as resolvePath } from "node:path";
 
 import type { Frame } from "../event/types.js";
 
 const MAX_FILE_BYTES = 256 * 1024; // skip files larger than 256KB (likely minified/generated)
 
-/** Resolve a frame filename against the worktree, defensively. */
+/**
+ * Resolve a frame filename against the worktree, defensively.
+ *
+ * Security: every resolved path is CONFINED to the worktree. Absolute paths
+ * and `../` traversals that would escape the worktree root are rejected
+ * (return null) so a crafted stack frame can never read arbitrary files
+ * (e.g. `/etc/passwd`, `~/.ssh/id_rsa`).
+ */
 function resolve(worktree: string | null, filename: string): string | null {
   if (!filename || filename.startsWith("node:") || filename === "(unknown)")
     return null;
-  if (isAbsolute(filename)) return filename;
   if (!worktree) return null;
-  return resolvePath(worktree, filename);
+  const resolved = isAbsolute(filename)
+    ? filename
+    : resolvePath(worktree, filename);
+  // Confinement: reject anything that resolves outside the worktree.
+  const rel = relative(worktree, resolved);
+  if (rel.startsWith("..") || isAbsolute(rel)) return null;
+  return resolved;
 }
 
 function looksBinary(buf: Uint8Array): boolean {
