@@ -1,6 +1,6 @@
 {
   "name": "@zademy/opencode-error-explainer",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "An OpenCode plugin that detects failed terminal commands, classifies common errors, and explains them to the AI so debugging is faster.",
   "type": "module",
   "main": "./dist/index.js",

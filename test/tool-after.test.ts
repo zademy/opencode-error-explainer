@@ -83,8 +83,12 @@ describe("tool.execute.after handler", () => {
     ) as Record<string, unknown>;
     const md = await readFile(join(dir, "last-error.md"), "utf8");
 
-    // Structured metadata is present.
-    expect(json.id).toBe("node_econnrefused");
+    // v0.2 persists a full Sentry-grade event: classification.id is nested.
+    const classification = json.classification as
+      Record<string, unknown> | undefined;
+    expect(classification?.id).toBe("node_econnrefused");
+    expect(json.event_id).toEqual(expect.any(String));
+    expect(json.exception).toBeDefined();
     // Secrets redacted in BOTH persisted artifacts.
     const jsonText = JSON.stringify(json);
     expect(jsonText).not.toContain("supersecretvalue");

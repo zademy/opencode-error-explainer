@@ -1,20 +1,37 @@
 /**
- * `tool.execute.after` orchestrator.
+ * `tool.execute.after` orchestrator (v0.2 — Sentry-grade).
  *
- * This is the ONLY entry point that touches the opencode runtime. It stays thin:
- * guard → classify → enrich → persist. All heavy lifting is delegated to pure,
- * unit-tested modules so the hook itself is obvious to read and hard to get
- * wrong. Every persistence failure is swallowed — the user's session must never
- * die because we couldn't write a debug file.
+ * Thin by design: guard → classify → gather context (async, all failures
+ * isolated) → assemble event → persist. Every side effect is wrapped so a
+ * failure in one enrichment never breaks the user's opencode session — the
+ * event simply omits that section.
  */
 
-import type { Classification, ErrorPattern } from "../classify/types.js";
+import type {
+  Classification,
+  ErrorPattern,
+  Severity,
+} from "../classify/types.js";
 import { classifyError } from "../classify/engine.js";
+import { isReadOnlyCommand } from "../classify/read-only.js";
 import type { PluginOptions } from "../config.js";
-import { buildExplanation } from "../enrich/explainer.js";
+import { gatherGit } from "../context/git.js";
+import { gatherOs, gatherRuntime } from "../context/env.js";
+import { enrichFrames } from "../context/source.js";
+import { gatherBreadcrumbs } from "../breadcrumbs/session.js";
 import { redactSecrets } from "../enrich/redact.js";
+import { buildExplanation } from "../enrich/explainer.js";
 import { appendHistory } from "../persist/history.js";
-import { writeArtifacts } from "../persist/writer.js";
+import { recordFrequency } from "../persist/frequency.js";
+import { writeEvent } from "../persist/writer.js";
+import { assembleEvent } from "../event/assemble.js";
+import { fingerprintOf } from "../event/fingerprint.js";
+import {
+  parseStacktrace,
+  stackToLanguage,
+  syntheticFrame,
+} from "../trace/parser.js";
+import type { Frame, Contexts, Breadcrumb, Frequency } from "../event/types.js";
 
 /** Structurally compatible with opencode's `tool.execute.after` input. */
 export interface ToolAfterInput {
@@ -34,36 +51,38 @@ export interface ToolAfterOutput {
 export interface HookDeps {
   readonly patterns: readonly ErrorPattern[];
   readonly options: PluginOptions;
-  /** Absolute dir, or null to disable persistence. */
   readonly outputDir: string | null;
   readonly version: string;
-  /** Sink for non-fatal diagnostics. Defaults to console.warn. */
+  /** Worktree root, for source/git/cwd context. */
+  readonly worktree: string | null;
+  /** opencode SDK client (used defensively for breadcrumbs). */
+  readonly client: unknown;
   readonly log?: (msg: string) => void;
 }
 
-/**
- * Build a `tool.execute.after` handler bound to resolved dependencies.
- *
- * The returned function has the exact signature opencode expects, so `index.ts`
- * can assign it directly into the hooks object.
- */
 export function createToolAfterHandler(
   deps: HookDeps,
 ): (input: ToolAfterInput, output: ToolAfterOutput) => Promise<void> {
-  const { patterns, options, outputDir, version } = deps;
+  const { patterns, options, outputDir, version, worktree, client } = deps;
   const log = deps.log ?? ((m: string) => console.warn(m));
 
   return async function toolExecuteAfter(input, output): Promise<void> {
     if (!options.enabled) return;
-
-    // Only terminal-style tools carry a command. opencode's terminal tool is
-    // `bash`; we also accept `shell`/`terminal` defensively in case of variants.
     if (!isTerminalTool(input.tool)) return;
 
     const command = input.args?.command;
     if (typeof command !== "string") return;
 
-    // Classify (pure). Stack filter from options is applied here.
+    // Skip read-only inspection commands (grep/cat of logs etc.) so printed
+    // error-like text isn't misclassified as a fresh failure.
+    if (
+      options.skipReadOnlyCommands &&
+      options.readOnlyCommands &&
+      isReadOnlyCommand(command, options.readOnlyCommands)
+    ) {
+      return;
+    }
+
     const classification = classifyError(
       output.output,
       command,
@@ -72,46 +91,83 @@ export function createToolAfterHandler(
     );
     if (!classification) return; // Successful or signal-less — do not pollute.
 
-    const stamped: Classification = {
-      ...classification,
-      timestamp: new Date().toISOString(),
+    const timestamp = new Date().toISOString();
+    const stamped: Classification = { ...classification, timestamp };
+
+    // ── Gather context (each pass is throw-safe; failure omits only its section) ──
+    const frames = await gatherFrames(stamped, options, worktree, log);
+    const git = options.gitContext ? gatherGit(worktree) : emptyGit();
+    const os = gatherOs();
+    const runtime = gatherRuntime(stamped.stack);
+    const breadcrumbs = options.breadcrumbs
+      ? await gatherBreadcrumbs(
+          client,
+          input.sessionID,
+          input.callID,
+          options.breadcrumbLimit,
+        )
+      : [];
+
+    const contexts: Contexts = {
+      os,
+      runtime,
+      app: {
+        worktree,
+        cwd: worktree,
+        git_branch: git.branch,
+        git_commit: git.commit,
+        git_dirty: git.dirty,
+      },
+      opencode: {
+        version: null, // not exposed to the hook; filled where available
+        session_id: input.sessionID,
+        agent: null,
+        model: null,
+      },
     };
 
-    // Enrich the structured metadata the AI/machine can read.
-    output.metadata.errorExplainer = {
-      version,
-      id: stamped.id,
-      type: stamped.type,
-      stack: stamped.stack,
-      severity: stamped.severity,
-      suggestion: stamped.suggestion,
-      file: stamped.file ?? null,
-      line: stamped.line ?? null,
-    };
+    const fingerprint = options.fingerprint ? fingerprintOf(stamped) : "";
 
-    // Append a concise explanation so the model sees it without an extra call.
-    if (options.appendToOutput) {
-      output.output = `${output.output}\n${buildExplanation(stamped, options.verbosity)}`;
+    // Frequency must be computed BEFORE assembling so the persisted event
+    // carries the up-to-date `times_seen`.
+    let frequency: Frequency | null = null;
+    if (outputDir && options.fingerprint && fingerprint) {
+      try {
+        frequency = await recordFrequency(
+          outputDir,
+          fingerprint,
+          timestamp,
+          (err) =>
+            log(`[error-explainer] frequency failed: ${errSummary(err)}`),
+        );
+      } catch (err) {
+        log(`[error-explainer] frequency error (ignored): ${errSummary(err)}`);
+      }
     }
 
-    // Persist to disk (best-effort). Redact before writing.
+    const event = assembleEvent({
+      classification: stamped,
+      frames,
+      contexts,
+      breadcrumbs,
+      fingerprint,
+      frequency,
+      sdkVersion: version,
+      timestamp,
+    });
+
+    // Persist (best-effort). Redact raw output + source context before writing.
     if (outputDir) {
-      const persisted = options.redact
-        ? { ...stamped, raw: redactSecrets(stamped.raw) }
-        : stamped;
+      const persisted = redactEvent(event, options.redact);
       try {
-        await writeArtifacts(outputDir, persisted, version, (err) =>
-          log(
-            `[error-explainer] failed to write artifacts: ${errSummary(err)}`,
-          ),
+        await writeEvent(outputDir, persisted, (err) =>
+          log(`[error-explainer] write failed: ${errSummary(err)}`),
         );
         if (options.historyLimit > 0) {
-          await appendHistory(outputDir, persisted, {
+          await appendHistory(outputDir, stamped, {
             limit: options.historyLimit,
             onError: (err) =>
-              log(
-                `[error-explainer] history update failed: ${errSummary(err)}`,
-              ),
+              log(`[error-explainer] history failed: ${errSummary(err)}`),
           });
         }
       } catch (err) {
@@ -120,7 +176,91 @@ export function createToolAfterHandler(
         );
       }
     }
+
+    // Structured metadata for the model/machine.
+    output.metadata.errorExplainer = {
+      version,
+      event_id: event.event_id,
+      id: stamped.id,
+      type: stamped.type,
+      stack: stamped.stack,
+      severity: stamped.severity,
+      suggestion: stamped.suggestion,
+      file: stamped.file ?? null,
+      line: stamped.line ?? null,
+      fingerprint: fingerprint || null,
+      times_seen: null,
+    };
+
+    // Inline append (minimal by default — full report lives in the artifact/tool).
+    appendInline(output, stamped, options);
   };
+}
+
+async function gatherFrames(
+  c: Classification,
+  options: PluginOptions,
+  worktree: string | null,
+  log: (m: string) => void,
+): Promise<readonly Frame[]> {
+  const lang = stackToLanguage(c.stack);
+  let frames = lang ? parseStacktrace(c.raw, lang) : [];
+  if (frames.length === 0) {
+    const synth = syntheticFrame(c.file, c.line);
+    frames = synth ? [synth] : [];
+  }
+  if (options.sourcePreview && frames.length > 0) {
+    try {
+      frames = await enrichFrames(frames, worktree, options.sourceContextLines);
+    } catch (err) {
+      log(`[error-explainer] source preview failed: ${errSummary(err)}`);
+    }
+  }
+  return frames;
+}
+
+/** Redact raw output + any source-context lines carried by the event. */
+function redactEvent(event: ReturnType<typeof assembleEvent>, redact: boolean) {
+  if (!redact) return event;
+  const values = event.exception.values.map((v) => ({
+    ...v,
+    stacktrace: {
+      frames: v.stacktrace.frames.map((f) =>
+        f.context
+          ? {
+              ...f,
+              context: f.context.map((c) => ({
+                line: c.line,
+                source: redactSecrets(c.source),
+              })),
+            }
+          : f,
+      ),
+    },
+  }));
+  return {
+    ...event,
+    exception: { values },
+    extra: {
+      ...event.extra,
+      raw_output_excerpts: (
+        event.extra.raw_output_excerpts as string[] | undefined
+      )?.map(redactSecrets),
+    },
+  };
+}
+
+function appendInline(
+  output: ToolAfterOutput,
+  c: Classification,
+  options: PluginOptions,
+): void {
+  if (options.appendMode === "off" || !options.appendToOutput) return;
+  if (options.appendMode === "minimal") {
+    output.output = `${output.output}\n> [Error Explainer] ${c.type}: ${c.suggestion}`;
+    return;
+  }
+  output.output = `${output.output}\n${buildExplanation(c, options.verbosity)}`;
 }
 
 function isTerminalTool(tool: string): boolean {
@@ -134,6 +274,18 @@ function isTerminalTool(tool: string): boolean {
   );
 }
 
+function emptyGit() {
+  return {
+    branch: null,
+    commit: null,
+    dirty: null,
+    remote: null,
+  } as ReturnType<typeof gatherGit>;
+}
+
 function errSummary(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
+
+// Keep referenced types exported for callers/tests.
+export type { Severity, Breadcrumb };

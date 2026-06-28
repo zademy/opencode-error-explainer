@@ -48,6 +48,8 @@ const plugin: Plugin = async (input, options) => {
     options: opts,
     outputDir,
     version: VERSION,
+    worktree: worktree ?? null,
+    client: input.client,
     log,
   });
 

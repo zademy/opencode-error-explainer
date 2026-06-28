@@ -1,6 +1,6 @@
 # @zademy/opencode-error-explainer
 
-> An [OpenCode](https://opencode.ai) plugin that detects failed terminal commands, **explains them to the AI in real time**, and keeps a redacted, structured record of every error — so debugging is faster and self-documenting.
+> An [OpenCode](https://opencode.ai) plugin that detects failed terminal commands, **explains them to the AI in real time**, and writes a **private, Sentry-style event** for every error — stack frames with source preview, OS/runtime/git context, breadcrumbs, and grouping frequency. **100% local. Nothing is ever transmitted.**
 
 [![npm](https://img.shields.io/npm/v/@zademy/opencode-error-explainer.svg)](https://www.npmjs.com/package/@zademy/opencode-error-explainer)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
@@ -30,8 +30,38 @@ your debugging history is auditable.
 3. **Enriches** two channels:
    - appends a short explanation to the tool `output` the model reads, and
    - injects a structured classification into `output.metadata`.
-4. **Persists** `last-error.md` + `last-error.json` (and a rotating history),
-   with **secrets redacted** before anything is written to disk.
+4. **Persists** a **private, Sentry-style event** to `last-error.{md,json}`
+   (and a rotating history), with **secrets redacted** before anything is
+   written to disk. No telemetry, no network — everything stays in your worktree.
+
+## Sentry-grade events (private, local)
+
+Every captured error becomes an event that mirrors Sentry's ingest shape — but
+**on your machine only**:
+
+- **Structured stacktrace** — language-aware frames (`filename`, `function`,
+  `lineno`, `colno`, `in_app`, `module`) for JavaScript/TypeScript, Python, Java,
+  Rust, and Go.
+- **Source preview** — `±N` lines read from the worktree around each in-app
+  frame (binary/minified/external files skipped), with the error line marked.
+- **Contexts** — OS (name/version/arch), runtime (node/python/go…), and
+  application (worktree, cwd, git branch, git commit SHA, dirty flag).
+- **Breadcrumbs** — the prior tool calls of the session (command + status +
+  timing), gathered defensively from the opencode client.
+- **Fingerprint & frequency** — a normalized signature is SHA-1 hashed for
+  grouping; `index.json` tracks `first_seen`, `last_seen`, and `times_seen` per
+  fingerprint.
+- **Read-only skip** — `cat`/`grep`/`less`/`head`/`tail`/`rg`/`find`/`ls` are
+  skipped so inspecting a log that contains the word "error" isn't misflagged.
+
+Inspect the last event any time:
+
+```bash
+cat .opencode/error-explainer/last-error.md   # sectioned report
+cat .opencode/error-explainer/last-error.json # full Sentry-shaped event
+```
+
+Or ask the model to run the `explain_error` tool, which renders the full report.
 
 ## Install
 
@@ -62,9 +92,18 @@ session.
 | `outputDir`         | `string`                      | `<worktree>/.opencode/error-explainer` | Where artifacts are written (relative to worktree, or absolute).        |
 | `historyLimit`      | `number`                      | `10`                             | How many recent errors to keep. `0` disables history.                      |
 | `stacks`            | `Stack[]`                     | all                              | Restrict activation to these stacks (e.g. `["java","typescript"]`).        |
-| `verbosity`         | `"concise" \| "detailed"`     | `"concise"`                      | How much detail to append to the output the AI sees.                       |
-| `redact`            | `boolean`                     | `true`                           | Strip likely secrets from persisted artifacts.                             |
-| `appendToOutput`    | `boolean`                     | `true`                           | Append an explanation to the tool output so the AI sees it directly.       |
+| `verbosity`         | `"concise" \| "detailed"`     | `"concise"`                      | Detail of the full report (artifact + `explain_error`).                    |
+| `redact`            | `boolean`                     | `true`                           | Strip likely secrets from persisted output and source previews.            |
+| `appendMode`        | `"minimal" \| "full" \| "off"`| `"minimal"`                      | What to append inline to the tool output the AI sees. The full report always lives in the artifact + `explain_error`. |
+| `sourcePreview`     | `boolean`                     | `true`                           | Read `±sourceContextLines` around each in-app frame from the worktree.     |
+| `sourceContextLines`| `number`                      | `5`                              | Lines of source captured on each side of the error line.                   |
+| `breadcrumbs`       | `boolean`                     | `true`                           | Gather prior tool calls of the session as breadcrumbs.                     |
+| `breadcrumbLimit`   | `number`                      | `15`                             | How many breadcrumbs to retain.                                            |
+| `gitContext`        | `boolean`                     | `true`                           | Capture git branch/commit/dirty.                                           |
+| `runtimeContext`    | `boolean`                     | `true`                           | Capture OS + runtime versions.                                             |
+| `fingerprint`       | `boolean`                     | `true`                           | Compute a grouping fingerprint + per-fingerprint frequency.                |
+| `skipReadOnlyCommands` | `boolean`                 | `true`                           | Skip read-only commands (cat/grep/less…) so inspecting a log isn't flagged. |
+| `readOnlyCommands`  | `string[]`                    | built-in list                    | Override the set of read-only command prefixes.                            |
 | `customPatternsPath`| `string`                      | `.error-patterns.json`           | Path (relative to worktree) to your custom patterns file. `null` disables. |
 
 ## Custom patterns
