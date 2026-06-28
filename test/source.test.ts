@@ -64,4 +64,40 @@ describe("enrichFrames", () => {
     const out = await enrichFrames([frame("bin", 1, true)], dir, 2);
     expect(out[0]!.context).toBeNull();
   });
+
+  // ── Path confinement (security) ───────────────────────────────────────────
+  it("rejects absolute paths outside the worktree", async () => {
+    await writeFile(join(dir, "app.ts"), "code\n", "utf8");
+    const out = await enrichFrames([frame("/etc/passwd", 1, true)], dir, 2);
+    expect(out[0]!.context).toBeNull();
+  });
+
+  it("rejects ../ traversals that escape the worktree", async () => {
+    await writeFile(join(dir, "app.ts"), "code\n", "utf8");
+    const out = await enrichFrames(
+      [frame("../../../etc/passwd", 1, true)],
+      dir,
+      2,
+    );
+    expect(out[0]!.context).toBeNull();
+  });
+
+  it("allows absolute paths that resolve inside the worktree", async () => {
+    const file = join(dir, "app.ts");
+    await writeFile(file, ["a", "b", "c"].join("\n"), "utf8");
+    const out = await enrichFrames(
+      [frame(file, 2, true)], // absolute path inside worktree
+      dir,
+      1,
+    );
+    expect(out[0]!.context).not.toBeNull();
+    expect(out[0]!.context!.some((c) => c.line === 2 && c.source === "b")).toBe(
+      true,
+    );
+  });
+
+  it("returns null context when worktree is null", async () => {
+    const out = await enrichFrames([frame("app.ts", 1, true)], null, 2);
+    expect(out[0]!.context).toBeNull();
+  });
 });

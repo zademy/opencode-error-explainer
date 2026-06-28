@@ -1,6 +1,6 @@
 {
   "name": "@zademy/opencode-error-explainer",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "An OpenCode plugin that detects failed terminal commands, classifies common errors, and explains them to the AI so debugging is faster.",
   "type": "module",
   "main": "./dist/index.js",
@@ -21,6 +21,8 @@
     "dev": "tsup src/index.ts --format esm --target node20 --watch --out-dir dist --dts",
     "build": "tsup",
     "typecheck": "tsc --noEmit",
+    "typecheck:tests": "tsc -p tsconfig.test.json",
+    "typecheck:all": "npm run typecheck && npm run typecheck:tests",
     "test": "vitest run",
     "test:watch": "vitest",
     "prepublishOnly": "npm run build"
@@ -52,8 +54,7 @@
     "node": ">=20"
   },
   "peerDependencies": {
-    "@opencode-ai/plugin": ">=1.17.0",
-    "zod": ">=3.23.0"
+    "@opencode-ai/plugin": ">=1.17.0"
   },
   "devDependencies": {
     "@opencode-ai/plugin": "^1.17.11",

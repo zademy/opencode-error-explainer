@@ -31,6 +31,8 @@ function makeHandler(
     options: { ...DEFAULT_OPTIONS, ...extra },
     outputDir,
     version: "0.0.0-test",
+    worktree: null,
+    client: null,
     log: () => {},
   });
 }
@@ -123,5 +125,85 @@ describe("tool.execute.after handler", () => {
     await handler(fakeInput("node app.js"), out);
     expect(out.metadata.errorExplainer).toBeUndefined();
     expect(await readdir(dir)).toHaveLength(0);
+  });
+
+  // ── Redaction coverage (security) ─────────────────────────────────────────
+  it("redacts secrets in history files, not just the main event", async () => {
+    const handler = makeHandler(dir, { historyLimit: 5 });
+    const out = fakeOutput("Error: ECONNREFUSED\nfailed to connect");
+    // Secret travels via the command field, which IS serialized to history.
+    await handler(fakeInput("node app.js --password=supersecretvalue"), out);
+
+    const historyDir = join(dir, "history");
+    const files = (await readdir(historyDir)).filter((f) =>
+      f.endsWith(".json"),
+    );
+    expect(files.length).toBe(1);
+    const historyText = await readFile(join(historyDir, files[0]!), "utf8");
+    expect(historyText).not.toContain("supersecretvalue");
+    expect(historyText).toContain("[REDACTED]");
+  });
+
+  it("redacts secrets embedded in the command string", async () => {
+    const handler = makeHandler(dir);
+    const out = fakeOutput(
+      "Error: ECONNREFUSED 127.0.0.1:5432\nfailed to connect",
+    );
+    // Command carries a labeled secret that must be scrubbed from the artifact.
+    await handler(
+      fakeInput(
+        "curl -H 'Authorization: Bearer tok_abcdef1234567890' https://x",
+      ),
+      out,
+    );
+
+    const jsonText = await readFile(join(dir, "last-error.json"), "utf8");
+    expect(jsonText).not.toContain("tok_abcdef1234567890");
+    // The command (logger + extra.command) should be redacted.
+    const event = JSON.parse(jsonText) as Record<string, unknown>;
+    expect(String(event.logger)).toContain("[REDACTED]");
+    const extra = event.extra as Record<string, unknown>;
+    expect(String(extra.command)).toContain("[REDACTED]");
+  });
+
+  // ── runtimeContext option (privacy: skip subprocess probes) ───────────────
+  it("does not gather OS/runtime context when runtimeContext is false", async () => {
+    const handler = makeHandler(dir, { runtimeContext: false });
+    const out = fakeOutput("Error: listen EADDRINUSE :::3000");
+    await handler(fakeInput("node app.js"), out);
+
+    const json = JSON.parse(
+      await readFile(join(dir, "last-error.json"), "utf8"),
+    ) as Record<string, unknown>;
+    const contexts = json.contexts as Record<
+      string,
+      Record<string, unknown> | undefined
+    >;
+    // With runtimeContext disabled, OS name should be the fallback "unknown",
+    // not the real OS name returned by gatherOs().
+    expect(contexts.os!.name).toBe("unknown");
+    expect(contexts.runtime!.version).toBeNull();
+  });
+
+  // ── times_seen metadata (bug fix) ─────────────────────────────────────────
+  it("populates times_seen from frequency in metadata", async () => {
+    const handler = makeHandler(dir, { fingerprint: true });
+    const out = fakeOutput("Error: listen EADDRINUSE :::3000");
+    await handler(fakeInput("node app.js"), out);
+
+    const meta = out.metadata.errorExplainer as Record<string, unknown>;
+    expect(meta.times_seen).toBe(1);
+  });
+
+  it("reports times_seen=2 on the second identical error", async () => {
+    const handler = makeHandler(dir, { fingerprint: true });
+    for (let i = 0; i < 2; i++) {
+      const out = fakeOutput("Error: listen EADDRINUSE :::3000");
+      await handler(fakeInput("node app.js"), out);
+      if (i === 1) {
+        const meta = out.metadata.errorExplainer as Record<string, unknown>;
+        expect(meta.times_seen).toBe(2);
+      }
+    }
   });
 });

@@ -481,9 +481,15 @@ function coercePattern(entry: unknown, index: number): ErrorPattern | null {
   let pattern: RegExp;
   try {
     if (e.pattern instanceof RegExp) {
-      pattern = e.pattern;
+      // Strip stateful flags (g/y) — the engine uses .test()/.exec() in loops;
+      // a g/y regex advances lastIndex and silently misses matches on reuse.
+      pattern = new RegExp(
+        e.pattern.source,
+        e.pattern.flags.replace(/[gy]/g, ""),
+      );
     } else if (typeof e.pattern === "string") {
-      const flags = typeof e.flags === "string" ? e.flags : "i";
+      const rawFlags = typeof e.flags === "string" ? e.flags : "i";
+      const flags = rawFlags.replace(/[gy]/g, "");
       pattern = new RegExp(e.pattern, flags);
     } else {
       return null;
@@ -525,7 +531,11 @@ function coerceExtractors(
 }
 
 function toRegex(value: unknown): RegExp | undefined {
-  if (value instanceof RegExp) return value;
+  if (value instanceof RegExp) {
+    // Strip stateful flags — extractors use .exec() once but defensive
+    // normalization keeps all patterns non-stateful consistently.
+    return new RegExp(value.source, value.flags.replace(/[gy]/g, ""));
+  }
   if (typeof value === "string") {
     try {
       return new RegExp(value, "i");

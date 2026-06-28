@@ -32,4 +32,20 @@ describe("isReadOnlyCommand", () => {
     expect(isReadOnlyCommand("npm run build", ro)).toBe(false);
     expect(isReadOnlyCommand("mvn clean install", ro)).toBe(false);
   });
+
+  // ── Compound commands (all-segments check) ───────────────────────────────
+  it("does NOT skip compound commands where a segment can fail", () => {
+    // `grep x && npm test` — grep is read-only but npm test can fail.
+    expect(isReadOnlyCommand("grep -i error app.log && npm test", ro)).toBe(
+      false,
+    );
+    expect(isReadOnlyCommand("cat log | node process.js", ro)).toBe(false);
+    expect(isReadOnlyCommand("ls; npm run build", ro)).toBe(false);
+  });
+
+  it("skips compound commands only when ALL segments are read-only", () => {
+    expect(isReadOnlyCommand("grep error | head -5", ro)).toBe(true);
+    expect(isReadOnlyCommand("ls && cat log", ro)).toBe(true);
+    expect(isReadOnlyCommand("find . -name x; grep y", ro)).toBe(true);
+  });
 });

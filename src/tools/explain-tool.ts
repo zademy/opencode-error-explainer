@@ -13,7 +13,6 @@
  */
 
 import { tool, type ToolDefinition } from "@opencode-ai/plugin";
-import { z } from "zod";
 
 import { classifyError } from "../classify/engine.js";
 import type { ErrorPattern } from "../classify/types.js";
@@ -46,7 +45,7 @@ export function createExplainTool(deps: ExplainToolDeps): ToolDefinition {
       "output, or call with no arguments to recall the most recent captured " +
       "error. Returns a concise diagnosis plus actionable next steps.",
     args: {
-      text: z
+      text: tool.schema
         .string()
         .optional()
         .describe(
