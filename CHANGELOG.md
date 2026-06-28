@@ -5,6 +5,43 @@ All notable changes to **@zademy/opencode-error-explainer** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-06-28
+
+### Added — Sentry-grade local events
+The persisted artifact is now a rich, Sentry-style event. **100% local and
+private**: nothing is sent anywhere; source previews, git context, and
+breadcrumbs are read from the worktree only.
+
+- **Structured stacktraces**: language-aware parser (JavaScript/TypeScript,
+  Python, Java, Rust, Go) extracts `Frame[]` (`filename`, `function`, `lineno`,
+  `colno`, `in_app`, source context).
+- **Source preview**: reads `±N` lines around each in-app frame from the
+  worktree (binary/minified files skipped). `in_app` marks `node_modules`,
+  `.venv`, `vendor`, etc. as external.
+- **Contexts**: OS (name/version/arch), runtime (node/python/go version),
+  application (worktree, cwd, git branch, git commit SHA, dirty flag), and the
+  opencode session (version, sessionID, agent).
+- **Breadcrumbs**: the most recent tool calls in the session (command + status +
+  timing) gathered from the opencode client. Gathered defensively — omitted
+  silently if the host client does not expose session messages.
+- **Fingerprint & frequency**: a normalized signature is SHA-1 hashed for
+  grouping; `index.json` tracks `first_seen`, `last_seen`, and `times_seen` per
+  fingerprint.
+- **Sentry-compatible event schema** in `last-error.json` (event_id, timestamp,
+  platform, level, sdk, release, environment, exception, contexts,
+  breadcrumbs, tags, fingerprint, frequency) and a sectioned Markdown report.
+- Configurable via new options: `sourcePreview`, `sourceContextLines`,
+  `breadcrumbs`, `breadcrumbLimit`, `gitContext`, `runtimeContext`,
+  `fingerprint`, `skipReadOnlyCommands`, and `appendMode`.
+
+### Fixed
+- Skip read-only commands (`cat`, `grep`, `less`, `head`, `tail`, `rg`, `find`,
+  `ls`) so inspecting a log that contains the word "error" no longer triggers a
+  spurious explanation.
+- The inline `output.output` append is now minimal by default
+  (`appendMode: "minimal"`) — the full report lives in the artifact and the
+  `explain_error` tool response, which the opencode TUI renders reliably.
+
 ## [0.1.1] - 2026-06-28
 
 ### Fixed

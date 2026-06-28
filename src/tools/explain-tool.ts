@@ -19,6 +19,8 @@ import { classifyError } from "../classify/engine.js";
 import type { ErrorPattern } from "../classify/types.js";
 import type { Verbosity } from "../config.js";
 import { buildExplanation } from "../enrich/explainer.js";
+import { buildEventMarkdown } from "../event/render.js";
+import type { SentryGradeEvent } from "../event/types.js";
 import { toSerializable } from "../util/extract.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -86,18 +88,24 @@ export function createExplainTool(deps: ExplainToolDeps): ToolDefinition {
 
       try {
         const raw = await readFile(join(outputDir, "last-error.json"), "utf8");
-        const data = JSON.parse(raw) as Record<string, unknown>;
-        const lines: string[] = [
-          `Last error — ${String(data.type ?? "Unknown")} (${String(data.severity ?? "?")})`,
-          "",
-          `Suggestion: ${String(data.suggestion ?? "(none)")}`,
-        ];
-        if (typeof data.file === "string" || typeof data.line === "number") {
-          lines.push(`Location: ${data.file ?? "?"}:${data.line ?? "?"}`);
+        const parsed = JSON.parse(raw) as unknown;
+        // v0.2 persisted a full Sentry-grade event → render the rich report.
+        if (isSentryEvent(parsed)) {
+          return {
+            title: `Last error — ${parsed.exception.values[0]?.type ?? "Error"}`,
+            output: buildEventMarkdown(parsed),
+            metadata: { errorExplainer: parsed },
+          };
         }
+        // v0.1-style serializable fallback (older artifact on disk).
+        const data = parsed as Record<string, unknown>;
         return {
           title: "Last captured error",
-          output: lines.join("\n"),
+          output: [
+            `Last error — ${String(data.type ?? "Unknown")} (${String(data.severity ?? "?")})`,
+            "",
+            `Suggestion: ${String(data.suggestion ?? "(none)")}`,
+          ].join("\n"),
           metadata: { errorExplainer: data },
         };
       } catch (err) {
@@ -112,6 +120,17 @@ export function createExplainTool(deps: ExplainToolDeps): ToolDefinition {
       }
     },
   });
+}
+
+function isSentryEvent(value: unknown): value is SentryGradeEvent {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.event_id === "string" &&
+    !!v.exception &&
+    typeof v === "object" &&
+    typeof (v as { sdk?: unknown }).sdk === "object"
+  );
 }
 
 function errSummary(err: unknown): string {
