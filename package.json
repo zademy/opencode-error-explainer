@@ -1,6 +1,6 @@
 {
   "name": "opencode-error-explainer",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "An OpenCode plugin that detects failed terminal commands, classifies common errors, and explains them to the AI so debugging is faster.",
   "type": "module",
   "main": "./dist/index.js",
@@ -58,7 +58,7 @@
     "node": ">=22"
   },
   "peerDependencies": {
-    "@opencode/plugin": ">=2.0.0"
+    "@opencode/plugin": ">=2.0.0 <3"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

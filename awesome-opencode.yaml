@@ -1,0 +1,37 @@
+name: opencode-error-explainer
+repo: https://github.com/zademy/opencode-error-explainer
+tagline: Explains failed terminal commands to the AI the moment they happen, and keeps a private error history.
+description: >-
+  A plugin that watches every tool call, detects failures by content (OpenCode
+  exposes no exit code to plugins), classifies them against a library of
+  signatures covering Node, TypeScript, Python, Java, Rust, Go, Docker,
+  Kubernetes, Git, SQL and shell, and hands the model a concise diagnosis
+  inline. Every error is also written as a Sentry-shaped event with stack
+  frames, source preview, OS/runtime/git context, breadcrumbs and grouping
+  frequency. Ships an `explain_error` tool and an `/explain` command to recall
+  the last failure after it scrolls out of context. Team-specific signatures
+  can be added with a project-local `.error-patterns.json`, no rebuild needed.
+  Everything stays on your machine: no telemetry, no network, secrets redacted
+  on disk.
+scope:
+  - global
+  - project
+tags:
+  - debugging
+  - errors
+  - observability
+  - developer-experience
+installation: |
+  Add the plugin to `opencode.json` (global in `~/.config/opencode/` or
+  per-project in `.opencode/`), then restart OpenCode — the config is read
+  once at startup:
+
+  ```json
+  {
+    "$schema": "https://opencode.ai/config.json",
+    "plugin": [["opencode-error-explainer", { "verbosity": "concise" }]]
+  }
+  ```
+
+  After upgrading, clear `~/.cache/opencode/packages/` so the new version is
+  fetched.

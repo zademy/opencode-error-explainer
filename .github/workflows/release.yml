@@ -21,6 +21,16 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # Build the exact artifact npm serves and attach it, so anyone can verify
+      # the release matches the package instead of trusting the tag.
+      - run: npm ci
+      - run: npm run build
+      - run: npm pack --pack-destination .
+
       - name: Read version from package.json
         id: ver
         run: |
@@ -33,34 +43,36 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
-          if gh release view "$VERSION" >/dev/null 2>&1; then
-            echo "Release $VERSION already exists, nothing to do"
-            exit 0
-          fi
+          if ! gh release view "$VERSION" >/dev/null 2>&1; then
+            # An annotated tag needs a git identity and the runner has none:
+            # "fatal: empty ident name ... not allowed" without these two lines.
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # An annotated tag needs a git identity and the runner has none:
-          # "fatal: empty ident name ... not allowed" without these two lines.
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          if ! git rev-parse "$VERSION" >/dev/null 2>&1; then
-            git tag -a "$VERSION" -m "$VERSION"
-            git push origin "$VERSION"
-          fi
-
-          # Notes are built BEFORE the release is created: gh release create with
-          # an empty body exits 0, prints a URL, and silently creates nothing.
-          PREV=$(git describe --tags --abbrev=0 "HEAD^" 2>/dev/null || true)
-          {
-            if [ -n "$PREV" ]; then
-              echo "## Commits since $PREV"
-              echo
-              git log --no-merges --format='- %s (%h)' "${PREV}..HEAD"
-              echo
+            if ! git rev-parse "$VERSION" >/dev/null 2>&1; then
+              git tag -a "$VERSION" -m "$VERSION"
+              git push origin "$VERSION"
             fi
-            echo "See CHANGELOG.md for the full breakdown."
-          } > release-notes.md
 
-          # No --target: the tag already exists on this commit, and the API
-          # rejects a tag name as target_commitish (HTTP 422).
-          gh release create "$VERSION" --title "$VERSION" --notes-file release-notes.md
+            # Notes are built BEFORE the release is created: gh release create
+            # with an empty body exits 0, prints a URL, and creates nothing.
+            PREV=$(git describe --tags --abbrev=0 "HEAD^" 2>/dev/null || true)
+            {
+              if [ -n "$PREV" ]; then
+                echo "## Commits since $PREV"
+                echo
+                git log --no-merges --format='- %s (%h)' "${PREV}..HEAD"
+                echo
+              fi
+              echo "See CHANGELOG.md for the full breakdown."
+            } > release-notes.md
+
+            # No --target: the tag already exists on this commit, and the API
+            # rejects a tag name as target_commitish (HTTP 422).
+            gh release create "$VERSION" \
+              --title "$VERSION" \
+              --notes-file release-notes.md \
+              "./*.tgz"
+          else
+            echo "Release $VERSION already exists, leaving it untouched"
+          fi

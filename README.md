@@ -17,7 +17,7 @@
 - [Configuration](#configuration)
 - [Custom patterns](#custom-patterns)
 - [The `explain_error` tool](#the-explain_error-tool)
-- [Optional: a `/explain` command](#optional-a-explain-command)
+  -- [The `/explain` command](#the-explain-command)
 - [Sentry-grade events (private, local)](#sentry-grade-events-private-local)
 - [Privacy & security](#privacy--security)
 - [Development](#development)
@@ -47,8 +47,8 @@ machine.
 - 🛰️ **Sentry-style events** — structured stacktraces, source preview, OS / runtime
   / git context, breadcrumbs, and grouping frequency.
 - 🔒 **Private by design** — no telemetry, no network, secrets redacted on disk.
-- 🧪 **Robust** — TypeScript strict, 77 unit/integration tests, every side effect
-  isolated so a failure can never break your session.
+  -- 🧪 **Robust** — TypeScript strict, 107 unit/integration tests, every side
+  effect isolated so a failure can never break your session.
 
 ## How it works
 
@@ -67,9 +67,10 @@ machine.
 ## Requirements
 
 - **OpenCode** (the plugin uses the `tool.execute.after` hook + custom tools)
-- **Node.js >= 20** (declared in `package.json#engines`)
-- No other runtime dependencies — `@opencode-ai/plugin` and `zod` are provided by
-  the OpenCode host at runtime (declared as peer dependencies).
+  -- **Node.js >= 22** (declared in `package.json#engines`)
+  -- No other runtime dependencies — `@opencode/plugin` is provided by the
+  OpenCode host at runtime (declared as a peer dependency, `>=2.0.0 <3`).
+  Node's standard library does the file and process work.
 
 ## Install
 
@@ -187,22 +188,20 @@ The plugin registers an `explain_error` tool the model can call on demand:
 This is how the model recovers an explanation even after the inline enrichment
 has scrolled out of context.
 
-## Optional: a `/explain` command
+## The `/explain` command
 
-OpenCode commands are file-based and ship with the **user's** project (a plugin
-cannot register one), so copy this snippet into `.opencode/command/explain.md`
-if you want a one-keystroke `/explain`:
+The plugin registers `/explain` itself through `ctx.command.transform`.
+Type it in any session and the model recalls the last captured error, gives
+you the root cause in a paragraph, and proposes a concrete fix:
 
-```markdown
----
-description: Explain the most recent terminal error.
-agent: build
----
-
-Use the `explain_error` tool with no arguments to recall the last captured
-error, then give me a one-paragraph root-cause analysis and a concrete fix.
-If there is no recent error, tell me so.
 ```
+/explain
+```
+
+It carries no logic of its own — it routes through the same `explain_error`
+tool, so the answer is identical whether you ask by hand or the model
+reaches for it on its own. If the session prompt fails, the command logs
+and does nothing; it never breaks the session.
 
 ## Sentry-grade events (private, local)
 
@@ -249,7 +248,7 @@ vulnerability.
 ```bash
 npm ci            # reproducible install
 npm run typecheck # tsc --noEmit
-npm test          # Vitest suite (77 tests)
+npm test          # Vitest suite (107 tests)
 npm run build     # tsup → dist/
 npm pack --dry-run # inspect the published tarball
 ```

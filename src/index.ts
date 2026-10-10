@@ -19,6 +19,7 @@ import { resolveOptions } from "./config.js";
 import { loadPatterns } from "./classify/loader.js";
 import { createToolAfterHandler } from "./hooks/tool-after.js";
 import { createExplainTool } from "./tools/explain-tool.js";
+import { registerExplainCommand } from "./command/explain.js";
 import { createTrail } from "./breadcrumbs/trail.js";
 import {
   argsOf,
@@ -135,6 +136,12 @@ export default Plugin.define({
           log,
         }),
       );
+    });
+
+    await registerExplainCommand(ctx, {
+      prompt: (sessionID, text, delivery) =>
+        ctx.session.prompt({ sessionID, text, delivery }),
+      log,
     });
   },
 });

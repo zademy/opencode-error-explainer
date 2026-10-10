@@ -5,4 +5,4 @@
  * literal (not read from package.json at runtime) so the bundled plugin does
  * not depend on its install layout to know its own version.
  */
-export const VERSION = "0.3.1";
+export const VERSION = "0.4.0";
