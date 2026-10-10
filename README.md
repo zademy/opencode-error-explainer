@@ -1,6 +1,6 @@
-# @zademy/opencode-error-explainer
+# opencode-error-explainer
 
-[![npm](https://img.shields.io/npm/v/@zademy/opencode-error-explainer.svg)](https://www.npmjs.com/package/@zademy/opencode-error-explainer)
+[![npm](https://img.shields.io/npm/v/opencode-error-explainer.svg)](https://www.npmjs.com/package/opencode-error-explainer)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![tests](https://github.com/zademy/opencode-error-explainer/actions/workflows/ci.yml/badge.svg)](https://github.com/zademy/opencode-error-explainer/actions/workflows/ci.yml)
 
@@ -54,7 +54,7 @@ machine.
 
 1. **Detects** failures by content. OpenCode does not expose exit codes to
    plugins, so the plugin reads the merged `output` string and applies a pattern
-   + signal-density heuristic — it never pollutes successful commands.
+   - signal-density heuristic — it never pollutes successful commands.
 2. **Classifies** against a data-driven registry covering Node, TypeScript,
    Python, Java/Maven/Gradle, Rust, Go, Docker, Kubernetes, Git, SQL, shell,
    network, and OS errors.
@@ -78,7 +78,7 @@ Add the plugin to your `opencode.json` (global or project):
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": [["@zademy/opencode-error-explainer", { "verbosity": "concise" }]]
+  "plugin": [["opencode-error-explainer", { "verbosity": "concise" }]]
 }
 ```
 
@@ -86,8 +86,8 @@ Then **restart OpenCode** — config is loaded once at startup and is not
 hot-reloaded.
 
 > **Heads-up after upgrades:** OpenCode caches plugins under
-> `~/.cache/opencode/packages/@zademy/...`. After publishing or bumping a
-> version, clear that cache and restart so the new code is fetched.
+> `~/.cache/opencode/packages/opencode-error-explainer/...`. After publishing
+> or bumping a version, clear that cache and restart so the new code is fetched.
 
 ## Quickstart
 
@@ -102,7 +102,7 @@ hot-reloaded.
    ```bash
    cat .opencode/error-explainer/last-error.md
    ```
-   …or ask the model: *"use the explain_error tool to recall the last error."*
+   …or ask the model: _"use the explain_error tool to recall the last error."_
 
 ## Configuration
 
@@ -110,25 +110,25 @@ All options are optional and passed via the tuple form shown in [Install](#insta
 Defaults are safe; invalid values silently fall back so a bad config never breaks
 your session.
 
-| Option                 | Type                           | Default                                       | Description                                                                 |
-| ---------------------- | ------------------------------ | --------------------------------------------- | --------------------------------------------------------------------------- |
-| `enabled`              | `boolean`                      | `true`                                        | Master switch.                                                              |
-| `outputDir`            | `string`                       | `<worktree>/.opencode/error-explainer`        | Where artifacts are written (relative to worktree, or absolute).            |
-| `historyLimit`         | `number`                       | `10`                                          | How many recent errors to keep. `0` disables history.                       |
-| `stacks`               | `Stack[]`                      | all                                           | Restrict activation to these stacks (e.g. `["java","typescript"]`).         |
-| `verbosity`            | `"concise" \| "detailed"`      | `"concise"`                                   | Detail of the full report (artifact + `explain_error`).                     |
-| `redact`               | `boolean`                      | `true`                                        | Strip likely secrets from persisted output and source previews.             |
-| `appendMode`           | `"minimal" \| "full" \| "off"` | `"minimal"`                                   | What to append inline to the tool output the AI sees. The full report always lives in the artifact + `explain_error`. |
-| `sourcePreview`        | `boolean`                      | `true`                                        | Read `±sourceContextLines` around each in-app frame from the worktree.      |
-| `sourceContextLines`   | `number`                       | `5`                                           | Lines of source captured on each side of the error line.                    |
-| `breadcrumbs`          | `boolean`                      | `true`                                        | Gather prior tool calls of the session as breadcrumbs.                      |
-| `breadcrumbLimit`      | `number`                       | `15`                                          | How many breadcrumbs to retain.                                             |
-| `gitContext`           | `boolean`                      | `true`                                        | Capture git branch/commit/dirty.                                            |
-| `runtimeContext`       | `boolean`                      | `true`                                        | Capture OS + runtime versions.                                              |
-| `fingerprint`          | `boolean`                      | `true`                                        | Compute a grouping fingerprint + per-fingerprint frequency.                 |
-| `skipReadOnlyCommands` | `boolean`                      | `true`                                        | Skip read-only commands (cat/grep/less…) so inspecting a log isn't flagged. |
-| `readOnlyCommands`     | `string[]`                     | built-in list                                 | Override the set of read-only command prefixes.                             |
-| `customPatternsPath`   | `string`                       | `.error-patterns.json`                        | Path (relative to worktree) to your custom patterns file. `null` disables.  |
+| Option                 | Type                           | Default                                | Description                                                                                                           |
+| ---------------------- | ------------------------------ | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `enabled`              | `boolean`                      | `true`                                 | Master switch.                                                                                                        |
+| `outputDir`            | `string`                       | `<worktree>/.opencode/error-explainer` | Where artifacts are written (relative to worktree, or absolute).                                                      |
+| `historyLimit`         | `number`                       | `10`                                   | How many recent errors to keep. `0` disables history.                                                                 |
+| `stacks`               | `Stack[]`                      | all                                    | Restrict activation to these stacks (e.g. `["java","typescript"]`).                                                   |
+| `verbosity`            | `"concise" \| "detailed"`      | `"concise"`                            | Detail of the full report (artifact + `explain_error`).                                                               |
+| `redact`               | `boolean`                      | `true`                                 | Strip likely secrets from persisted output and source previews.                                                       |
+| `appendMode`           | `"minimal" \| "full" \| "off"` | `"minimal"`                            | What to append inline to the tool output the AI sees. The full report always lives in the artifact + `explain_error`. |
+| `sourcePreview`        | `boolean`                      | `true`                                 | Read `±sourceContextLines` around each in-app frame from the worktree.                                                |
+| `sourceContextLines`   | `number`                       | `5`                                    | Lines of source captured on each side of the error line.                                                              |
+| `breadcrumbs`          | `boolean`                      | `true`                                 | Gather prior tool calls of the session as breadcrumbs.                                                                |
+| `breadcrumbLimit`      | `number`                       | `15`                                   | How many breadcrumbs to retain.                                                                                       |
+| `gitContext`           | `boolean`                      | `true`                                 | Capture git branch/commit/dirty.                                                                                      |
+| `runtimeContext`       | `boolean`                      | `true`                                 | Capture OS + runtime versions.                                                                                        |
+| `fingerprint`          | `boolean`                      | `true`                                 | Compute a grouping fingerprint + per-fingerprint frequency.                                                           |
+| `skipReadOnlyCommands` | `boolean`                      | `true`                                 | Skip read-only commands (cat/grep/less…) so inspecting a log isn't flagged.                                           |
+| `readOnlyCommands`     | `string[]`                     | built-in list                          | Override the set of read-only command prefixes.                                                                       |
+| `customPatternsPath`   | `string`                       | `.error-patterns.json`                 | Path (relative to worktree) to your custom patterns file. `null` disables.                                            |
 
 **`Stack` values** (`stacks` / a pattern's `stack`): `node`, `typescript`,
 `python`, `java`, `go`, `rust`, `docker`, `kubernetes`, `git`, `sql`, `shell`,
@@ -156,7 +156,10 @@ signatures or override built-ins (by `id`):
       "pattern": "SERVICE_X returned 503",
       "flags": "i",
       "suggestion": "Service X is down. Check its health endpoint and retry.",
-      "nextSteps": ["Run `make svc-x-logs`.", "Page the on-call if it persists."]
+      "nextSteps": [
+        "Run `make svc-x-logs`.",
+        "Page the on-call if it persists."
+      ]
     }
   ]
 }

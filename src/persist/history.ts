@@ -93,7 +93,10 @@ async function prune(
 function sanitizeTimestamp(ts: string): string {
   if (!ts) return `unknown-${Date.now()}`;
   return (
-    ts.replace(/[^0-9T:Z.+-]/g, "_").slice(0, 32) || `unknown-${Date.now()}`
+    // `:` is illegal in Windows filenames, so the ISO colons are dropped.
+    // Keeping them made every history write fail on Windows, which is also
+    // why the Windows CI jobs could not find any history files.
+    ts.replace(/[^0-9TZ.+-]/gi, "_").slice(0, 32) || `unknown-${Date.now()}`
   );
 }
 

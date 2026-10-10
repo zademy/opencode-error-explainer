@@ -501,7 +501,7 @@ function coercePattern(entry: unknown, index: number): ErrorPattern | null {
   const nextSteps =
     Array.isArray(e.nextSteps) &&
     e.nextSteps.every((s) => typeof s === "string")
-      ? (e.nextSteps as string[])
+      ? e.nextSteps
       : undefined;
 
   const extractors = coerceExtractors(e.extractors);

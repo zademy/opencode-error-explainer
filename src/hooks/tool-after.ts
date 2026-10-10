@@ -18,7 +18,7 @@ import type { PluginOptions } from "../config.js";
 import { gatherGit } from "../context/git.js";
 import { gatherOs, gatherRuntime } from "../context/env.js";
 import { enrichFrames } from "../context/source.js";
-import { gatherBreadcrumbs } from "../breadcrumbs/session.js";
+import type { BreadcrumbTrail } from "../breadcrumbs/trail.js";
 import { redactSecrets } from "../enrich/redact.js";
 import { buildExplanation } from "../enrich/explainer.js";
 import { appendHistory } from "../persist/history.js";
@@ -33,18 +33,21 @@ import {
 } from "../trace/parser.js";
 import type { Frame, Contexts, Breadcrumb, Frequency } from "../event/types.js";
 
-/** Structurally compatible with opencode's `tool.execute.after` input. */
+/** Structural subset of v2's `tool.execute.after` event. */
 export interface ToolAfterInput {
   readonly tool: string;
   readonly sessionID: string;
-  readonly callID: string;
-  readonly args: { readonly command?: string } & Record<string, unknown>;
+  readonly id: string;
+  readonly input: { readonly command?: string } & Record<string, unknown>;
+  /** Agent that ran the tool; v2 exposes it on the event.
+   */
+  readonly agent?: string;
 }
 
 /** Structurally compatible with opencode's `tool.execute.after` output (mutable). */
 export interface ToolAfterOutput {
-  title: string;
-  output: string;
+  readonly title: string;
+  readonly output: string;
   metadata: Record<string, unknown>;
 }
 
@@ -53,24 +56,30 @@ export interface HookDeps {
   readonly options: PluginOptions;
   readonly outputDir: string | null;
   readonly version: string;
+  /** Host opencode version, recorded in the event's contexts. */
+  readonly sdkVersion: string | null;
   /** Worktree root, for source/git/cwd context. */
   readonly worktree: string | null;
-  /** opencode SDK client (used defensively for breadcrumbs). */
-  readonly client: unknown;
+  /** Recent tool calls recorded by this plugin (null when unavailable). */
+  readonly trail: BreadcrumbTrail | null;
   readonly log?: (msg: string) => void;
 }
 
 export function createToolAfterHandler(
   deps: HookDeps,
-): (input: ToolAfterInput, output: ToolAfterOutput) => Promise<void> {
-  const { patterns, options, outputDir, version, worktree, client } = deps;
+): (input: ToolAfterInput, output: ToolAfterOutput) => Promise<string | void> {
+  const { patterns, options, outputDir, version, worktree, trail, sdkVersion } =
+    deps;
   const log = deps.log ?? ((m: string) => console.warn(m));
 
-  return async function toolExecuteAfter(input, output): Promise<void> {
+  return async function toolExecuteAfter(
+    input,
+    output,
+  ): Promise<string | void> {
     if (!options.enabled) return;
     if (!isTerminalTool(input.tool)) return;
 
-    const command = input.args?.command;
+    const command = input.input?.command;
     if (typeof command !== "string") return;
 
     // Skip read-only inspection commands (grep/cat of logs etc.) so printed
@@ -104,12 +113,8 @@ export function createToolAfterHandler(
       ? gatherRuntime(stamped.stack)
       : { name: "node", version: null };
     const breadcrumbs = options.breadcrumbs
-      ? await gatherBreadcrumbs(
-          client,
-          input.sessionID,
-          input.callID,
-          options.breadcrumbLimit,
-        )
+      ? (trail?.snapshot(input.sessionID, input.id, options.breadcrumbLimit) ??
+        [])
       : [];
 
     const contexts: Contexts = {
@@ -123,9 +128,9 @@ export function createToolAfterHandler(
         git_dirty: git.dirty,
       },
       opencode: {
-        version: null, // not exposed to the hook; filled where available
+        version: sdkVersion,
         session_id: input.sessionID,
-        agent: null,
+        agent: input.agent ?? null,
         model: null,
       },
     };
@@ -200,7 +205,7 @@ export function createToolAfterHandler(
     };
 
     // Inline append (minimal by default — full report lives in the artifact/tool).
-    appendInline(output, stamped, options);
+    return appendInline(stamped, options);
   };
 }
 
@@ -293,17 +298,20 @@ function redactClassification(c: Classification): Classification {
   };
 }
 
+/**
+ * Text to append after the tool output, or undefined when inline append is off.
+ * Returned instead of written directly because a v2 tool result carries its text
+ * in `output` or `content` depending on the tool; the v2 adapter picks the slot.
+ */
 function appendInline(
-  output: ToolAfterOutput,
   c: Classification,
   options: PluginOptions,
-): void {
-  if (options.appendMode === "off" || !options.appendToOutput) return;
+): string | undefined {
+  if (options.appendMode === "off" || !options.appendToOutput) return undefined;
   if (options.appendMode === "minimal") {
-    output.output = `${output.output}\n> [Error Explainer] ${c.type}: ${c.suggestion}`;
-    return;
+    return `\n> [Error Explainer] ${c.type}: ${c.suggestion}`;
   }
-  output.output = `${output.output}\n${buildExplanation(c, options.verbosity)}`;
+  return `\n${buildExplanation(c, options.verbosity)}`;
 }
 
 function isTerminalTool(tool: string): boolean {

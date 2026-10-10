@@ -1,8 +1,8 @@
 /**
  * Custom tool: `explain_error`.
  *
- * Registered via the `tool: { explain_error: ... }` object hook so the AI (or a
- * user-driven command) can ask, on demand:
+ * Registered through `ctx.tool.transform` so the AI (or a user-driven command)
+ * can ask, on demand:
  *
  *   - "Explain this error text" → pass `text` with the output to classify.
  *   - "What was the last error?" → omit `text`; the tool reads `last-error.json`.
@@ -11,8 +11,6 @@
  * explanation for an error even when the inline `tool.execute.after` enrichment
  * has scrolled out of context.
  */
-
-import { tool, type ToolDefinition } from "@opencode-ai/plugin";
 
 import { classifyError } from "../classify/engine.js";
 import type { ErrorPattern } from "../classify/types.js";
@@ -32,34 +30,67 @@ export interface ExplainToolDeps {
   readonly log?: (msg: string) => void;
 }
 
+/** Structural subset of v2's `Tool.Info` — see @opencode/plugin's tool domain. */
+export interface ExplainToolInfo {
+  readonly name: string;
+  readonly description: string;
+  readonly input: Record<string, unknown>;
+  // v2 only accepts `content` unless the tool declares an output schema.
+  execute(input: unknown): Promise<{
+    content: string;
+    metadata?: Record<string, unknown>;
+  }>;
+}
+
+/** Read `text` out of an untyped tool input. */
+function textOf(input: unknown): string | undefined {
+  if (!input || typeof input !== "object") return undefined;
+  const t = (input as { text?: unknown }).text;
+  return typeof t === "string" ? t : undefined;
+}
+
+/** Read a display field off an untyped artifact, falling back when absent. */
+function field(
+  data: Record<string, unknown>,
+  key: string,
+  fallback: string,
+): string {
+  const v = data[key];
+  return typeof v === "string" && v.length > 0 ? v : fallback;
+}
+
 /**
- * Build the `explain_error` ToolDefinition bound to resolved dependencies.
+ * Build the `explain_error` tool bound to resolved dependencies.
  */
-export function createExplainTool(deps: ExplainToolDeps): ToolDefinition {
+export function createExplainTool(deps: ExplainToolDeps): ExplainToolInfo {
   const { patterns, outputDir, verbosity, version } = deps;
   const log = deps.log ?? ((m: string) => console.warn(m));
 
-  return tool({
+  return {
+    name: "explain_error",
     description:
       "Explain a terminal error. Pass `text` to classify an arbitrary error " +
       "output, or call with no arguments to recall the most recent captured " +
       "error. Returns a concise diagnosis plus actionable next steps.",
-    args: {
-      text: tool.schema
-        .string()
-        .optional()
-        .describe(
-          "The error text to explain. Omit to recall the last captured error.",
-        ),
+    input: {
+      type: "object",
+      properties: {
+        text: {
+          type: "string",
+          description:
+            "The error text to explain. Omit to recall the last captured error.",
+        },
+      },
     },
-    async execute(args) {
+
+    async execute(input: unknown) {
       // Mode 1: caller supplied text to classify right now.
-      if (typeof args.text === "string" && args.text.trim().length > 0) {
-        const classification = classifyError(args.text, "(manual)", patterns);
+      const text = textOf(input);
+      if (text && text.trim().length > 0) {
+        const classification = classifyError(text, "(manual)", patterns);
         if (!classification) {
           return {
-            title: "No error detected",
-            output:
+            content:
               "The provided text does not contain a recognized error signature. " +
               "Look for the first line starting with `Error`, `Failed`, `Exception`, or `Caused by`.",
           };
@@ -69,8 +100,7 @@ export function createExplainTool(deps: ExplainToolDeps): ToolDefinition {
           timestamp: new Date().toISOString(),
         };
         return {
-          title: `Error Explainer — ${stamped.type}`,
-          output: buildExplanation(stamped, verbosity),
+          content: buildExplanation(stamped, verbosity),
           metadata: { errorExplainer: toSerializable(stamped, version) },
         };
       }
@@ -78,8 +108,7 @@ export function createExplainTool(deps: ExplainToolDeps): ToolDefinition {
       // Mode 2: recall the last persisted error.
       if (!outputDir) {
         return {
-          title: "Error Explainer unavailable",
-          output:
+          content:
             "Persistence is disabled (no output directory resolved), so there is " +
             "no last-error record to recall. Pass `text` to classify an error directly.",
         };
@@ -91,19 +120,17 @@ export function createExplainTool(deps: ExplainToolDeps): ToolDefinition {
         // v0.2 persisted a full Sentry-grade event → render the rich report.
         if (isSentryEvent(parsed)) {
           return {
-            title: `Last error — ${parsed.exception.values[0]?.type ?? "Error"}`,
-            output: buildEventMarkdown(parsed),
+            content: buildEventMarkdown(parsed),
             metadata: { errorExplainer: parsed },
           };
         }
         // v0.1-style serializable fallback (older artifact on disk).
         const data = parsed as Record<string, unknown>;
         return {
-          title: "Last captured error",
-          output: [
-            `Last error — ${String(data.type ?? "Unknown")} (${String(data.severity ?? "?")})`,
+          content: [
+            `Last error — ${field(data, "type", "Unknown")} (${field(data, "severity", "?")})`,
             "",
-            `Suggestion: ${String(data.suggestion ?? "(none)")}`,
+            `Suggestion: ${field(data, "suggestion", "(none)")}`,
           ].join("\n"),
           metadata: { errorExplainer: data },
         };
@@ -112,13 +139,12 @@ export function createExplainTool(deps: ExplainToolDeps): ToolDefinition {
           `[error-explainer] could not read last-error.json: ${errSummary(err)}`,
         );
         return {
-          title: "No recent error",
-          output:
+          content:
             "No captured error is available yet. Run a command that fails, or pass `text` to classify an error directly.",
         };
       }
     },
-  });
+  };
 }
 
 function isSentryEvent(value: unknown): value is SentryGradeEvent {

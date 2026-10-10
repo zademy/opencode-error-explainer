@@ -1,0 +1,20 @@
+# Normalize line endings in the repository, not in the working tree.
+#
+# Without this, Git checks files out with CRLF on Windows (core.autocrlf)
+# and Prettier's default endOfLine:"lf" then flags every single file as
+# unformatted, which is how the Windows CI jobs started failing.
+* text=auto eol=lf
+
+# Keep shell scripts and CI files LF-only: a CRLF batch/shell file breaks.
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# These are binary; never let Git touch their line endings.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary

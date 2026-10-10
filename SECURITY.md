@@ -7,7 +7,7 @@ for security problems.** Instead, use one of these private channels:
 
 - **GitHub Security Advisories** (preferred): go to
   [the repository](https://github.com/zademy/opencode-error-explainer) →
-  *Security* → *Report a vulnerability*. This keeps the report private to
+  _Security_ → _Report a vulnerability_. This keeps the report private to
   maintainers.
 - If you cannot use Advisories, open a **regular issue** flagged
   `security` and we will handle it confidentially.
@@ -70,8 +70,9 @@ during the session — this is by design, not a leak to disk.
 
 ### Supply chain
 
-- Scoped package (`@zademy/opencode-error-explainer`) published with
-  `--access public` and `publishConfig`.
+-- Unscoped package (`opencode-error-explainer`) published with
+`--access public` and `publishConfig`.
+
 - **No `postinstall` or other install scripts.**
 - Runtime dependencies are externalized as peer dependencies
   (`@opencode-ai/plugin`, `zod`), provided by the OpenCode host at runtime; the

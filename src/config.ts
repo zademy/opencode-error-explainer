@@ -5,7 +5,7 @@
  *
  * ```json
  * "plugin": [
- *   ["@zademy/opencode-error-explainer", { "verbosity": "detailed" }]
+ *   ["opencode-error-explainer", { "verbosity": "detailed" }]
  * ]
  * ```
  *

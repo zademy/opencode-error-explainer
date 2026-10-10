@@ -10,9 +10,7 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   // Provided by opencode at runtime; never bundle them.
-  // zod is no longer imported directly — it arrives transitively via
-  // @opencode-ai/plugin (which re-exports it as `tool.schema`).
-  external: ["@opencode-ai/plugin"],
+  external: ["@opencode/plugin"],
   splitting: false,
   shims: false,
 });

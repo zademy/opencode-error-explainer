@@ -9,7 +9,7 @@ import type { Classification } from "../classify/types.js";
 
 /** A plain (JSON-serializable) representation of a classification. */
 export interface SerializableClassification {
-  readonly plugin: "@zademy/opencode-error-explainer";
+  readonly plugin: "opencode-error-explainer";
   readonly version: string;
   readonly id: string;
   readonly stack: string;
@@ -33,7 +33,7 @@ export function toSerializable(
   version: string,
 ): SerializableClassification {
   return {
-    plugin: "@zademy/opencode-error-explainer",
+    plugin: "opencode-error-explainer",
     version,
     id: c.id,
     stack: c.stack,
