@@ -5,6 +5,42 @@ All notable changes to **opencode-error-explainer** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-10-10
+
+### Added
+
+--- **`/explain` command**, registered by the plugin through
+`ctx.command.transform`. It routes through the same `explain_error`
+tool, so the answer is identical to asking by hand. The previous README
+told users to copy a markdown file into their own project because it
+claimed a plugin could not register a command — the v2 SDK exposes a
+`CommandDomain`, so that is no longer true and the manual step is gone.
+--- **Tarball asset on every GitHub Release**, so the published artifact can
+be downloaded and compared against npm.
+
+### Changed
+
+--- **`peerDependencies` is now `>=2.0.0 <3`.** An open upper bound let a
+breaking v3 of the SDK install silently and break the plugin at load.
+--- **CI runs once per push instead of twice.** The `pull_request`
+trigger fired a duplicate run for the same commit on top of the push
+run, doubling the jobs. Checks attach to the commit SHA either way, so
+`main`'s required status checks are unaffected.
+--- **Release is cut by merging the PR into `main`**, not by pushing a tag
+by hand: `main` is protected, so a push to it is a merge.
+
+### Fixed
+
+--- **`release.yml` could not tag.** `git tag -a` needs an identity and the
+runner has none (`fatal: empty ident name ... not allowed`). The
+workflow now sets `user.name` / `user.email` before tagging.
+--- **Release notes could be silently empty.** `gh release create` with an
+empty body exits 0, prints a URL, and creates nothing; notes are built
+before the create call and passed with `--notes-file`.
+--- **README documented four things that were false:** Node `>= 20` (it is
+`>= 22`), 77 tests (107), `@opencode-ai/plugin` (the package is
+`@opencode/plugin`), and a `zod` peer dependency that never existed.
+
 ## [0.3.0] - 2026-10-10
 
 ### Added
