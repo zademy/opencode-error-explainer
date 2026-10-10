@@ -74,7 +74,7 @@ export function assembleEvent(input: AssembleInput): SentryGradeEvent {
     language: c.stack,
     level: severityToLevel(c.severity),
     sdk: {
-      name: "@zademy/opencode-error-explainer",
+      name: "opencode-error-explainer",
       version: input.sdkVersion,
     },
     release: contexts.app.git_commit,

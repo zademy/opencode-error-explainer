@@ -1,6 +1,6 @@
 {
-  "name": "@zademy/opencode-error-explainer",
-  "version": "0.2.1",
+  "name": "opencode-error-explainer",
+  "version": "0.3.0",
   "description": "An OpenCode plugin that detects failed terminal commands, classifies common errors, and explains them to the AI so debugging is faster.",
   "type": "module",
   "main": "./dist/index.js",
@@ -25,6 +25,10 @@
     "typecheck:all": "npm run typecheck && npm run typecheck:tests",
     "test": "vitest run",
     "test:watch": "vitest",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -54,14 +58,18 @@
     "node": ">=20"
   },
   "peerDependencies": {
-    "@opencode-ai/plugin": ">=1.17.0"
+    "@opencode/plugin": ">=2.0.0"
   },
   "devDependencies": {
-    "@opencode-ai/plugin": "^1.17.11",
+    "@eslint/js": "^9.39.5",
+    "@opencode/plugin": "^2.0.26",
     "@types/node": "^22.0.0",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.9.10",
     "tsup": "^8.0.0",
     "typescript": "^5.0.0",
-    "vitest": "^2.0.0",
-    "zod": "^4.0.0"
+    "typescript-eslint": "^8.71.1",
+    "vitest": "^2.0.0"
   }
 }

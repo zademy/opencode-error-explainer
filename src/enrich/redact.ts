@@ -46,7 +46,7 @@ export const REDACTION_RULES: readonly RedactionRule[] = [
     pattern: /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g,
   },
   // Generic Bearer token
-  { id: "bearer", pattern: /\bBearer\s+[A-Za-z0-9._\-]{16,}/gi },
+  { id: "bearer", pattern: /\bBearer\s+[A-Za-z0-9._-]{16,}/gi },
   // key=value style secrets: password=, passwd=, secret=, token=, api_key=, apikey=, access_token=
   {
     id: "labeled_secret",

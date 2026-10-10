@@ -1,4 +1,4 @@
-# Contributing to @zademy/opencode-error-explainer
+# Contributing to opencode-error-explainer
 
 Thanks for considering a contribution! This guide describes how to set up the
 project locally, where things live, and the conventions to follow so your change
@@ -19,13 +19,13 @@ npm ci
 
 ## Common tasks
 
-| Task | Command |
-| --- | --- |
-| Build (tsup → `dist/`) | `npm run build` |
-| Type-check (`tsc --noEmit`) | `npm run typecheck` |
-| Run the test suite (Vitest) | `npm test` |
-| Watch tests | `npm run test:watch` |
-| Dev build (watch) | `npm run dev` |
+| Task                          | Command              |
+| ----------------------------- | -------------------- |
+| Build (tsup → `dist/`)        | `npm run build`      |
+| Type-check (`tsc --noEmit`)   | `npm run typecheck`  |
+| Run the test suite (Vitest)   | `npm test`           |
+| Watch tests                   | `npm run test:watch` |
+| Dev build (watch)             | `npm run dev`        |
 | Inspect the published tarball | `npm pack --dry-run` |
 
 Before opening a PR, please run **all three**:

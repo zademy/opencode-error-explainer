@@ -12,7 +12,7 @@
 import type { Classification } from "../classify/types.js";
 import type { Verbosity } from "../config.js";
 
-const HEADER = "── Error Explainer (by @zademy/opencode-error-explainer) ──";
+const HEADER = "── Error Explainer (by opencode-error-explainer) ──";
 
 export function buildExplanation(
   c: Classification,

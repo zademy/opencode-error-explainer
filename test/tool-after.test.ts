@@ -31,14 +31,15 @@ function makeHandler(
     options: { ...DEFAULT_OPTIONS, ...extra },
     outputDir,
     version: "0.0.0-test",
+    sdkVersion: "2.0.0-test",
     worktree: null,
-    client: null,
+    trail: null,
     log: () => {},
   });
 }
 
 function fakeInput(command: string): ToolAfterInput {
-  return { tool: "bash", sessionID: "s1", callID: "c1", args: { command } };
+  return { tool: "bash", sessionID: "s1", id: "c1", input: { command } };
 }
 
 function fakeOutput(text: string): ToolAfterOutput {
@@ -49,14 +50,18 @@ describe("tool.execute.after handler", () => {
   it("appends an explanation and sets structured metadata for a real error", async () => {
     const handler = makeHandler(dir);
     const out = fakeOutput("node:internal Error: Cannot find module 'express'");
-    await handler(fakeInput("node server.js"), out);
+    const appended = await handler(fakeInput("node server.js"), out);
 
     expect(out.metadata.errorExplainer).toBeDefined();
     expect((out.metadata.errorExplainer as Record<string, unknown>).id).toBe(
       "node_missing_module",
     );
-    expect(out.output).toContain("Error Explainer");
-    expect(out.output).toContain("Missing dependency");
+    expect(appended).toContain("Error Explainer");
+    expect(appended).toContain("Missing dependency");
+    // v2 hands back the text to append; the raw output is never mutated.
+    expect(out.output).toBe(
+      "node:internal Error: Cannot find module 'express'",
+    );
   });
 
   it("does not pollute successful command output", async () => {
@@ -113,9 +118,9 @@ describe("tool.execute.after handler", () => {
   it("never throws when the output dir is null", async () => {
     const handler = makeHandler(null as unknown as string); // persistence disabled
     const out = fakeOutput("Error: Cannot find module 'lodash'");
-    await expect(
-      handler(fakeInput("node app.js"), out),
-    ).resolves.toBeUndefined();
+    await expect(handler(fakeInput("node app.js"), out)).resolves.toBeTypeOf(
+      "string",
+    );
     expect(out.metadata.errorExplainer).toBeDefined();
   });
 

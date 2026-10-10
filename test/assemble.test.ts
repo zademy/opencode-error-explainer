@@ -72,7 +72,7 @@ describe("assembleEvent", () => {
     expect(e.exception.values[0]?.type).toBe("Missing dependency");
     expect(e.exception.values[0]?.stacktrace.frames[0]?.lineno).toBe(12);
     expect(e.frequency?.times_seen).toBe(3);
-    expect(e.sdk.name).toBe("@zademy/opencode-error-explainer");
+    expect(e.sdk.name).toBe("opencode-error-explainer");
   });
 });
 

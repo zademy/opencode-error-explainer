@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to **@zademy/opencode-error-explainer** are documented here.
+All notable changes to **opencode-error-explainer** are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.1] - 2026-06-28
 
 ### Security
+
 - **Path confinement**: source-preview now confines every resolved path to the
   worktree root. Absolute paths (`/etc/passwd`) and `../` traversals that would
   escape the worktree are rejected, so a crafted stack frame can never read
@@ -18,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   buffer. Previously only `raw_output_excerpts` and source context were covered.
 
 ### Fixed
+
 - `times_seen` in structured metadata was always `null` even after frequency was
   computed. Now reports the real count (`frequency?.times_seen`).
 - Compound commands like `grep x && npm test` were incorrectly skipped as
@@ -30,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `gatherRuntime()` spawned subprocess probes regardless. Now respected.
 
 ### Changed
+
 - Migrated `explain_error` tool args from direct `zod` import to
   `tool.schema` (re-exported by `@opencode-ai/plugin`). `zod` is no longer a
   peer dependency — it arrives transitively at runtime.
@@ -39,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.0] - 2026-06-28
 
 ### Added — Sentry-grade local events
+
 The persisted artifact is now a rich, Sentry-style event. **100% local and
 private**: nothing is sent anywhere; source previews, git context, and
 breadcrumbs are read from the worktree only.
@@ -66,6 +70,7 @@ breadcrumbs are read from the worktree only.
   `fingerprint`, `skipReadOnlyCommands`, and `appendMode`.
 
 ### Fixed
+
 - Skip read-only commands (`cat`, `grep`, `less`, `head`, `tail`, `rg`, `find`,
   `ls`) so inspecting a log that contains the word "error" no longer triggers a
   spurious explanation.
@@ -76,6 +81,7 @@ breadcrumbs are read from the worktree only.
 ## [0.1.1] - 2026-06-28
 
 ### Fixed
+
 - Plugin failed to load in opencode with `"Plugin export is not a function"`.
   Root cause: opencode's loader falls back to a "legacy" path that requires
   every named export to be a function, but this package also exports `VERSION`
@@ -87,6 +93,7 @@ breadcrumbs are read from the worktree only.
 ## [0.1.0] - 2026-06-28
 
 ### Added
+
 - First public release.
 - `tool.execute.after` hook that detects failed `bash` commands by content
   (opencode exposes no exit code to plugins), classifies them against a
