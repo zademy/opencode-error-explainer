@@ -55,7 +55,8 @@ jobs:
             echo "Release $VERSION already exists, skipping"
             exit 0
           fi
-          gh release create "$VERSION" --target "$TAG" --title "$VERSION" --latest
+          # No --target: the tag already exists on the pushed commit, and the
+          # API rejects a tag name as target_commitish (HTTP 422).
           # --generate-notes only lists merged PRs; this repo pushes direct to main,
           # so the commit list comes from git log between tags instead.
           PREV=$(git describe --tags --abbrev=0 "$TAG^" 2>/dev/null || true)
