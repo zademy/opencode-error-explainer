@@ -164,3 +164,7 @@ breadcrumbs are read from the worktree only.
 [0.3.0]: https://github.com/zademy/opencode-error-explainer/releases/tag/v0.3.0
 [0.2.1]: https://github.com/zademy/opencode-error-explainer/releases/tag/v0.2.1
 [0.1.0]: https://github.com/zademy/opencode-error-explainer/releases/tag/v0.1.0
+
+## [Unreleased]
+
+_Nothing yet._
