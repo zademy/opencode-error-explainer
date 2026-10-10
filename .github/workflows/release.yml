@@ -1,8 +1,7 @@
 name: Release
 
-# Tagged exactly like the npm publish in ci.yml: a GitHub Release is minted from
-# the same v* tag that publishes to npm, so the two can never disagree about what
-# actually shipped.
+# Cuts the GitHub Release from a v* tag on main. The tag is the only trigger,
+# so a release can never exist for a commit that was never tagged.
 on:
   push:
     tags: ["v*"]
