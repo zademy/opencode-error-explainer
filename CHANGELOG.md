@@ -5,6 +5,55 @@ All notable changes to **opencode-error-explainer** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-10-10
+
+### Added
+
+-- **`explain_error` tool**: ask the model to classify an arbitrary error
+string on demand, or to recall the last captured error even after the
+inline `tool.execute.after` enrichment has scrolled out of context.
+-- **ESLint 9 + Prettier**: type-aware lint rules (`no-floating-promises`,
+`no-misused-promises`) catch what `tsc` does not report. Both run in CI.
+-- **Cross-OS CI**: the plugin shells out to `git` and resolves OS context at
+runtime, so it is now verified on Linux, macOS and Windows.
+-- **`release.yml`**: a GitHub Release is cut from a `v*` tag, and the tag is
+verified against `package.json` so a release cannot exist for an untagged
+commit.
+
+### Changed
+
+-- **OpenCode v2 plugin API.** Hooks are registered on the v2 tool domain
+(`tool.hook("execute.before"/"execute.after")`) and the tool via
+`tool.transform`. The worktree now comes from `ctx.location.directory`.
+-- **Breadcrumbs are recorded locally** in a per-session ring buffer
+(`src/breadcrumbs/trail.ts`). v2's plugin context has no message-reading
+API, so the old `client.session.messages` round-trip is gone.
+-- **A failed tool no longer gets output appended.** v2 has no writable
+result for a failed call, so its explanation lands in the persisted
+artifact instead.
+-- **Minimum Node is now 22.** CI tests only 22.
+-- **Package renamed** from the scoped `@zademy/opencode-error-explainer` to
+unscoped `opencode-error-explainer`. Nothing was ever published under the
+old name.
+-- **CI no longer publishes to npm** and no longer caches dependencies.
+Verification runs on `develop` only; `main` is the release branch.
+
+### Fixed
+
+-- **Error history never worked on Windows.** Timestamps kept their ISO
+colons and `:` is illegal in Windows filenames, so every write threw and
+was swallowed. That also silently voided the secret-redaction guarantee
+for history files on Windows. Filenames are now valid on every OS.
+-- **`explain_error` could render `[object Object]`** when a field in an older
+artifact was not a string; it now falls back cleanly.
+-- **`withAppended` lost element types** because `Array.isArray()` widens a
+readonly array to `any[]`. Replaced with a type predicate.
+-- **Prettier flagged all 53 files on Windows** while Linux and macOS passed,
+because `core.autocrlf` checks files out with CRLF. Added `.gitattributes`
+pinning `eol=lf`.
+-- A test assumed POSIX: it forced a write failure via `/dev/null/cant`, which
+is creatable on Windows, so the expected error never fired.
+
 ## [0.2.1] - 2026-06-28
 
 ### Security
@@ -112,5 +161,6 @@ breadcrumbs are read from the worktree only.
   root (overrides built-ins by `id`, appends otherwise).
 - Full type-safety (TypeScript strict), Vitest unit tests, and a CI workflow.
 
+[0.3.0]: https://github.com/zademy/opencode-error-explainer/releases/tag/v0.3.0
 [0.2.1]: https://github.com/zademy/opencode-error-explainer/releases/tag/v0.2.1
 [0.1.0]: https://github.com/zademy/opencode-error-explainer/releases/tag/v0.1.0

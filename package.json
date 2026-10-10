@@ -1,6 +1,6 @@
 {
   "name": "opencode-error-explainer",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "An OpenCode plugin that detects failed terminal commands, classifies common errors, and explains them to the AI so debugging is faster.",
   "type": "module",
   "main": "./dist/index.js",
@@ -18,7 +18,7 @@
     "CHANGELOG.md"
   ],
   "scripts": {
-    "dev": "tsup src/index.ts --format esm --target node20 --watch --out-dir dist --dts",
+    "dev": "tsup src/index.ts --format esm --target node22 --watch --out-dir dist --dts",
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "typecheck:tests": "tsc -p tsconfig.test.json",
@@ -55,7 +55,7 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "peerDependencies": {
     "@opencode/plugin": ">=2.0.0"

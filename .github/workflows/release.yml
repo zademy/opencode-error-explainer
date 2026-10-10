@@ -55,20 +55,22 @@ jobs:
             echo "Release $VERSION already exists, skipping"
             exit 0
           fi
-          # No --target: the tag already exists on the pushed commit, and the
-          # API rejects a tag name as target_commitish (HTTP 422).
-          # --generate-notes only lists merged PRs; this repo pushes direct to main,
-          # so the commit list comes from git log between tags instead.
+
+          # Notes are built BEFORE the release is created. `gh release create`
+          # with an empty body exits 0 and prints a URL but creates nothing,
+          # so a create-then-edit order silently produces no release at all.
+          # No --target either: the tag already exists on the pushed commit and
+          # the API rejects a tag name as target_commitish (HTTP 422).
           PREV=$(git describe --tags --abbrev=0 "$TAG^" 2>/dev/null || true)
-          if [ -z "$PREV" ]; then
-            echo "No previous tag, keeping the native notes"
-            exit 0
-          fi
           {
-            echo "## Commits since $PREV"
-            echo
-            git log --no-merges --format='- %s (%h)' "${PREV}..${TAG}"
-            echo
+            if [ -n "$PREV" ]; then
+              echo "## Commits since $PREV"
+              echo
+              git log --no-merges --format='- %s (%h)' "${PREV}..${TAG}"
+              echo
+            fi
             echo "See CHANGELOG.md for the full breakdown."
           } > release-notes.md
+
+          gh release create "$VERSION" --title "$VERSION" --notes-file release-notes.md
           gh release edit "$VERSION" --notes-file release-notes.md
