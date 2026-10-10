@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -43,10 +43,14 @@ describe("frequency index", () => {
   });
 
   it("does not throw on a write failure", async () => {
-    // Pointing at a path that can't be created (a file under a file) → graceful.
+    // A regular file used as a directory: mkdir fails with ENOTDIR on every
+    // OS. The old /dev/null/cant trick silently SUCCEEDED on Windows, so the
+    // expected error never fired there.
+    const blocker = join(dir, "blocker");
+    await writeFile(blocker, "not a directory", "utf8");
     let err: unknown = null;
     const res = await recordFrequency(
-      "/dev/null/cant",
+      join(blocker, "cant"),
       "fp",
       "t",
       (e) => (err = e),
