@@ -1,11 +1,12 @@
 name: CI
 
 on:
-  # develop is the only branch that gets verified across all 3 OSes.
+  # develop only, and only on push. A pull_request trigger here would fire a
+  # second, identical run for the same commit on top of this one, doubling
+  # the jobs for no extra coverage. The checks land on the commit SHA either
+  # way, so main's required status checks are still satisfied by this run.
   push:
     branches: [develop]
-  pull_request:
-    branches: [main, develop]
   workflow_dispatch:
 
 permissions:
@@ -18,10 +19,9 @@ concurrency:
 jobs:
   verify:
     name: lint + format + typecheck + test + build (${{ matrix.os }}, node ${{ matrix.node }})
-    # Verification runs on develop only. main is the release branch: it merges
-    # PRs that already passed this matrix, so re-running it there would burn 6
-    # runners re-proving work that is already green.
-    if: github.ref == 'refs/heads/develop' || github.event_name == 'pull_request'
+    # Redundant with the push trigger but kept as a guard: main is the release
+    # branch and must never re-run the matrix.
+    if: github.ref == 'refs/heads/develop'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
