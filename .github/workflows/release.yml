@@ -1,12 +1,11 @@
 name: Release
 
-# main is protected: only a merged pull request can change it. So this workflow
-# fires exactly once per release — right after a PR lands on main — and mints the
-# GitHub Release from the version that same PR bumped. No manual tagging step.
+# Fires when a pull request is merged into main. main is protected, so a push
+# to it can only be a merge: the release is published by merging the PR, not by
+# pushing a tag by hand. The workflow creates the tag itself.
 on:
   push:
     branches: [main]
-  # Manual re-run, e.g. to repair the notes of an existing release.
   workflow_dispatch:
 
 permissions:
@@ -22,7 +21,7 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Resolve version from package.json
+      - name: Read version from package.json
         id: ver
         run: |
           VERSION="v$(node -p "require('./package.json').version")"
@@ -39,7 +38,11 @@ jobs:
             exit 0
           fi
 
-          # Tag the exact merged commit. Skipped if someone tagged by hand.
+          # An annotated tag needs a git identity and the runner has none:
+          # "fatal: empty ident name ... not allowed" without these two lines.
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           if ! git rev-parse "$VERSION" >/dev/null 2>&1; then
             git tag -a "$VERSION" -m "$VERSION"
             git push origin "$VERSION"
