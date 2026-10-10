@@ -1,12 +1,11 @@
 name: CI
 
+# Compiles only when a pull request targets main. A push to develop does
+# nothing on purpose: the PR is where the build has to be green before it can
+# be merged, so running it twice on the same commit is wasted work.
 on:
-  # develop only, and only on push. A pull_request trigger here would fire a
-  # second, identical run for the same commit on top of this one, doubling
-  # the jobs for no extra coverage. The checks land on the commit SHA either
-  # way, so main's required status checks are still satisfied by this run.
-  push:
-    branches: [develop]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -19,17 +18,17 @@ concurrency:
 jobs:
   verify:
     name: lint + format + typecheck + test + build (${{ matrix.os }}, node ${{ matrix.node }})
-    # Redundant with the push trigger but kept as a guard: main is the release
-    # branch and must never re-run the matrix.
-    if: github.ref == 'refs/heads/develop'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         # The plugin shells out to `git` and resolves OS/runtime context at
         # runtime, so every OS has to build and pass on its own.
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         node: ["22"]
+    # A leaked child process can keep vitest waiting on stdio forever; fail the
+    # job instead of burning the default timeout on a hung run.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
