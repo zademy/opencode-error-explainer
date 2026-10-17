@@ -74,21 +74,69 @@ machine.
 
 ## Install
 
-Add the plugin to your `opencode.json` (global or project):
+### From npm (recommended)
+
+Add the plugin to the `plugins` array in your `opencode.json` (global or
+project) as a plain string:
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": [["opencode-error-explainer", { "verbosity": "concise" }]]
+  "plugins": ["opencode-error-explainer"]
 }
 ```
+
+Mix it with your other plugins; to pass options, use the object form:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": [
+    "@dietrichgebert/ponytail",
+    "open-context-mode@latest",
+    {
+      "package": "opencode-error-explainer",
+      "options": { "verbosity": "concise" }
+    }
+  ]
+}
+```
+
+You can also install it globally from the CLI:
+`opencode plugin add opencode-error-explainer`.
 
 Then **restart OpenCode** — config is loaded once at startup and is not
 hot-reloaded.
 
-> **Heads-up after upgrades:** OpenCode caches plugins under
-> `~/.cache/opencode/packages/opencode-error-explainer/...`. After publishing
-> or bumping a version, clear that cache and restart so the new code is fetched.
+> **Heads-up after upgrades:** OpenCode caches package plugins. After a
+> new version is published, run `opencode plugin update
+opencode-error-explainer` and restart so the new code is fetched (or
+> remove `~/.cache/opencode/packages/opencode-error-explainer/` by hand).
+
+### From a local clone (development)
+
+Clone and build the compiled output first:
+
+```bash
+git clone https://github.com/zademy/opencode-error-explainer.git
+cd opencode-error-explainer
+npm ci && npm run build # produces dist/index.js
+```
+
+Then point `plugins` at the cloned directory — the entry loads the
+compiled `dist/index.js` through the package manifest:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": ["../opencode-error-explainer"]
+}
+```
+
+Relative paths resolve from the config file that declares them; absolute
+paths and `file://` URLs also work:
+`/absolute/path/opencode-error-explainer`,
+`file:///absolute/path/opencode-error-explainer`.
 
 ## Quickstart
 
@@ -107,7 +155,7 @@ hot-reloaded.
 
 ## Configuration
 
-All options are optional and passed via the tuple form shown in [Install](#install).
+All options are optional and passed via the object form shown in [Install](#install).
 Defaults are safe; invalid values silently fall back so a bad config never breaks
 your session.
 

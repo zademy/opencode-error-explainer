@@ -5,6 +5,18 @@ All notable changes to **opencode-error-explainer** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-10-16
+
+### Fixed
+
+---- **Install docs showed the deprecated V1 config form.** The README used the
+V1 `plugin` tuple syntax; it now documents the V2 `plugins` array — plain
+string, object form with `options`, `opencode plugin add`, and loading from a
+local clone (directory path, `file://` URL) after `npm run build`.
+---- **Relative links in the README broke on npmjs.com.** SECURITY.md,
+CONTRIBUTING.md and CODE_OF_CONDUCT.md are not shipped in the tarball, so
+their links now point to absolute GitHub URLs.
+
 ## [0.4.0] - 2026-10-10
 
 ### Added
