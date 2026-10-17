@@ -240,7 +240,7 @@ cat .opencode/error-explainer/last-error.json # full Sentry-shaped event
   intact so it can reason about the real command; redaction is a write-to-disk
   concern only.
 
-See [SECURITY.md](./SECURITY.md) for the full policy and how to report a
+See [SECURITY.md](https://github.com/zademy/opencode-error-explainer/blob/main/SECURITY.md) for the full policy and how to report a
 vulnerability.
 
 ## Development
@@ -289,9 +289,9 @@ fallback for unrecognised errors carrying two or more signals.
 
 ## Contributing
 
-Contributions are welcome! Read [CONTRIBUTING.md](./CONTRIBUTING.md) for setup,
+Contributions are welcome! Read [CONTRIBUTING.md](https://github.com/zademy/opencode-error-explainer/blob/main/CONTRIBUTING.md) for setup,
 conventions, and how to add patterns. This project follows the
-[Contributor Covenant Code of Conduct](./CODE_OF_CONDUCT.md).
+[Contributor Covenant Code of Conduct](https://github.com/zademy/opencode-error-explainer/blob/main/CODE_OF_CONDUCT.md).
 
 ## License
 
