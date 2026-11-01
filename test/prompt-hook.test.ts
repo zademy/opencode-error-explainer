@@ -97,7 +97,7 @@ describe("createPromptHook", () => {
       hook({ sessionID: "s1", prompt: {} }),
     ).resolves.toBeUndefined();
     await expect(
-      hook(null as unknown as Parameters<typeof hook>[0]),
+      hook(null),
     ).resolves.toBeUndefined();
   });
 

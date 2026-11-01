@@ -30,7 +30,7 @@ interface PromptLike {
 
 export function createPromptHook(
   deps: PromptHookDeps,
-): (input: { sessionID: string; prompt: unknown }) => Promise<void> {
+): (input: unknown) => Promise<void> {
   const { options, pending, digest, isMainSession } = deps;
   const log = deps.log ?? (() => {});
   /** Sessions that already received their digest. */
@@ -38,8 +38,16 @@ export function createPromptHook(
 
   return async function promptHook(input): Promise<void> {
     try {
-      if (!input || typeof input.sessionID !== "string") return;
-      const prompt = input.prompt as Partial<PromptLike> | null;
+      if (
+        !input ||
+        typeof input !== "object" ||
+        typeof (input as { sessionID?: unknown }).sessionID !== "string"
+      ) {
+        return;
+      }
+      const sessionID = (input as { sessionID: string }).sessionID;
+      const prompt = (input as { prompt?: unknown }).prompt as
+        Partial<PromptLike> | null | undefined;
       if (
         !prompt ||
         typeof prompt !== "object" ||
@@ -52,9 +60,9 @@ export function createPromptHook(
       const prefixes: string[] = [];
 
       // Digest: once per session, main sessions only, switchable.
-      if (options.sessionMemory && !digested.has(input.sessionID)) {
-        digested.add(input.sessionID);
-        if (await isMainSession(input.sessionID)) {
+      if (options.sessionMemory && !digested.has(sessionID)) {
+        digested.add(sessionID);
+        if (await isMainSession(sessionID)) {
           const digestText = await digest();
           if (digestText) {
             prefixes.push(
@@ -65,7 +73,7 @@ export function createPromptHook(
       }
 
       // Pending notes (oldest first), drained on delivery.
-      const notes = pending.drain(input.sessionID);
+      const notes = pending.drain(sessionID);
       prefixes.push(...notes);
 
       if (prefixes.length === 0) return;
