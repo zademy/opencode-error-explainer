@@ -50,9 +50,13 @@ export interface SubscribeDeps {
   readonly log?: (msg: string) => void;
 }
 
-/** Pure gate used by the entry point: never subscribe when disabled. */
+/** Pure gate used by the entry point: register delivery whenever enabled. */
 export function shouldSubscribe(options: PluginOptions): boolean {
-  return options.enabled && options.captureEvents;
+  // Prompt delivery (pending notes + digest) is NOT bus-dependent — the
+  // digest reads persisted history from disk — so it registers whenever the
+  // plugin is enabled. Only the event stream itself requires captureEvents
+  // (enforced inside subscribeBus).
+  return options.enabled;
 }
 
 export function subscribeBus(deps: SubscribeDeps): void {
@@ -80,6 +84,10 @@ export function subscribeBus(deps: SubscribeDeps): void {
     log,
   });
   deps.registerPromptHook(promptHook);
+
+  // The event stream is the only captureEvents-gated part. With it off, the
+  // prompt hook still delivers the session digest and any pending notes.
+  if (!options.captureEvents) return;
 
   deps.registerEvents((event) => {
     try {

@@ -120,6 +120,10 @@ export function createToolAfterHandler(
     if (!classification) {
       // A later successful run of the same command is the lesson's
       // "last resolved by" source — record it before the early return.
+      // Limitation: v2 exposes no exit codes, so "no error signal" is the
+      // best proxy for success; a signal-less failure cannot be told apart
+      // and may produce a resolution line. Accepted trade-off (rare, and
+      // the resolution text only claims the re-run itself succeeded).
       lessons?.markSuccess(input.sessionID, command);
       return; // Successful or signal-less — do not pollute.
     }
@@ -244,11 +248,14 @@ export function createToolAfterHandler(
       : null;
 
     // v0.5: pending bus notes ride along above the diagnosis (fallback for
-    // sessions whose prompts the hook did not deliver). Cap at 3 one-liners.
+    // sessions whose prompts the hook did not deliver). Cap at 3 one-liners
+    // per tool result; anything beyond is re-enqueued for the next ride.
     const canAppend = options.appendMode !== "off" && options.appendToOutput;
-    const rideAlong = canAppend
-      ? (pending?.drain(input.sessionID) ?? []).slice(0, 3)
-      : [];
+    const drained = canAppend ? (pending?.drain(input.sessionID) ?? []) : [];
+    const rideAlong = drained.slice(0, 3);
+    for (const line of drained.slice(3)) {
+      pending?.enqueue(input.sessionID, line);
+    }
 
     // Inline append (minimal by default — full report lives in the artifact/tool).
     return appendInline(stamped, options, lessonLine, rideAlong);

@@ -52,7 +52,7 @@ describe("createLessonPolicy — lessonLine", () => {
     ).toBe("[Error Explainer] 11th X in this session; no known resolution yet");
   });
 
-  it("threshold 1 means lessons from the first occurrence", () => {
+  it("threshold 1 yields lessons from the first occurrence at POLICY level (the option treats 1 as off, wired in index.ts)", () => {
     const p = createLessonPolicy(1);
     expect(
       p.lessonLine({ count: 1, type: "X", command: "c", resolution: null }),

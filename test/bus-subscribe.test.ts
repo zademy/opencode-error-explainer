@@ -49,7 +49,7 @@ function makeDeps(over: Record<string, unknown> = {}) {
 }
 
 describe("shouldSubscribe", () => {
-  it("subscribes only when enabled and captureEvents are on", () => {
+  it("registers delivery whenever the plugin is enabled", () => {
     expect(
       shouldSubscribe({
         ...DEFAULT_OPTIONS,
@@ -57,18 +57,19 @@ describe("shouldSubscribe", () => {
         captureEvents: true,
       }),
     ).toBe(true);
-    expect(
-      shouldSubscribe({
-        ...DEFAULT_OPTIONS,
-        enabled: false,
-        captureEvents: true,
-      }),
-    ).toBe(false);
+    // captureEvents only gates the event stream, not prompt delivery.
     expect(
       shouldSubscribe({
         ...DEFAULT_OPTIONS,
         enabled: true,
         captureEvents: false,
+      }),
+    ).toBe(true);
+    expect(
+      shouldSubscribe({
+        ...DEFAULT_OPTIONS,
+        enabled: false,
+        captureEvents: true,
       }),
     ).toBe(false);
   });
@@ -82,12 +83,25 @@ describe("subscribeBus", () => {
     expect(promptHooks).toHaveLength(1);
   });
 
+  it("registers the prompt hook even when captureEvents is off (digest is bus-independent)", () => {
+    const { deps, promptHooks, emit } = makeDeps({
+      options: { ...DEFAULT_OPTIONS, captureEvents: false },
+    });
+    subscribeBus(deps);
+    expect(promptHooks).toHaveLength(1);
+    // no event sink was registered → emit would throw if used
+    expect(emit).toThrow();
+  });
+
   it("records shell breadcrumbs into the trail", () => {
     const { deps, trail, emit } = makeDeps();
     subscribeBus(deps);
     emit({
       type: "session.shell.started",
-      properties: { sessionID: "s1", command: "npm test" },
+      data: {
+        sessionID: "s1",
+        shell: { id: "sh-1", status: "running", command: "npm test" },
+      },
     });
     const snap = trail.snapshot("s1", "none", 10);
     expect(snap).toHaveLength(1);
@@ -98,11 +112,10 @@ describe("subscribeBus", () => {
     subscribeBus({ ...deps, pipeline });
     const shellFailed = {
       type: "session.shell.ended",
-      properties: {
+      data: {
         sessionID: "s1",
-        command: "npm test",
-        exitCode: 1,
-        output: "Error: boom",
+        shell: { id: "sh-1", status: "exited", command: "npm test", exit: 1 },
+        output: { output: "Error: boom", cursor: 0, size: 0, truncated: false },
       },
     };
 

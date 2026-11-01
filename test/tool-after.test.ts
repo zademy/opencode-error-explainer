@@ -291,7 +291,7 @@ describe("tool.execute.after — v0.5 lesson escalation", () => {
     );
   });
 
-  it("pending bus notes ride along above the diagnosis (max 3)", async () => {
+  it("pending bus notes ride along above the diagnosis (max 3, tail re-enqueued)", async () => {
     const pending = createPendingNotes();
     pending.enqueue("s1", "bus note A");
     pending.enqueue("s1", "bus note B");
@@ -306,6 +306,13 @@ describe("tool.execute.after — v0.5 lesson escalation", () => {
     expect(appended).not.toContain("bus note D");
     // diagnosis still present below the ride-along
     expect(appended).toContain("Missing dependency");
+
+    // the dropped tail is re-enqueued and rides the next injection
+    const second = await handler(
+      fakeInput("node server.js"),
+      fakeOutput(failText),
+    );
+    expect(second).toContain("bus note D");
   });
 
   it("with lessons/deduper/pending null the default output is unchanged", async () => {
