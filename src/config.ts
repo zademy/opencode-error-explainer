@@ -76,6 +76,13 @@ export interface PluginOptions {
   readonly skipReadOnlyCommands: boolean;
   /** Custom set of command-prefixes to treat as read-only (overrides default). */
   readonly readOnlyCommands: readonly string[] | null;
+  // ── v0.5 event bus ────────────────────────────────────────────────────────
+  /** Subscribe to the OpenCode event bus (model/agent-layer errors, shell, permissions). */
+  readonly captureEvents: boolean;
+  /** Occurrence count that turns a diagnosis line into a lesson line. 1 disables lessons. */
+  readonly lessonThreshold: number;
+  /** Inject a capped digest of the worktree's prior errors at session start (main sessions only). */
+  readonly sessionMemory: boolean;
 }
 
 /** Defaults applied when an option is omitted or invalid. */
@@ -98,6 +105,9 @@ export const DEFAULT_OPTIONS: PluginOptions = {
   fingerprint: true,
   skipReadOnlyCommands: true,
   readOnlyCommands: null,
+  captureEvents: true,
+  lessonThreshold: 2,
+  sessionMemory: true,
 };
 
 const DEFAULT_READ_ONLY_COMMANDS: readonly string[] = [
@@ -233,5 +243,12 @@ export function resolveOptions(raw: unknown): PluginOptions {
     ),
     readOnlyCommands:
       asStringArray(r.readOnlyCommands) ?? DEFAULT_READ_ONLY_COMMANDS,
+    captureEvents: asBool(r.captureEvents, DEFAULT_OPTIONS.captureEvents),
+    // 0 falls back to the default: unlike historyLimit, 0 is not a useful
+    // state for a threshold (it would mean "lesson before first occurrence").
+    lessonThreshold:
+      asPositiveInt(r.lessonThreshold, DEFAULT_OPTIONS.lessonThreshold) ||
+      DEFAULT_OPTIONS.lessonThreshold,
+    sessionMemory: asBool(r.sessionMemory, DEFAULT_OPTIONS.sessionMemory),
   };
 }
