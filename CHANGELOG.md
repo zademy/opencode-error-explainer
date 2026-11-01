@@ -5,6 +5,50 @@ All notable changes to **opencode-error-explainer** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-10-31
+
+### Added
+
+- **Event bus capture:** read-only subscription to the OpenCode v2 event bus.
+  Model/agent-layer errors (`session.execution.failed`,
+  `session.retry.scheduled`, `session.compaction.failed`), permission
+  denials (`permission.asked`/`replied` joined by request ID), and session
+  shell commands now flow through the same classify → explain → persist
+  pipeline as terminal failures. `captureEvents` (default on) switches it.
+- **Provider/agent pattern families:** `provider_rate_limited`,
+  `provider_auth_failed`, `provider_context_overflow`,
+  `provider_overloaded`, `compaction_failed`, `permission_denied`.
+- **Lessons on repeat errors:** from the `lessonThreshold` occurrence
+  (default 2nd) of the same fingerprint within a session, the inline
+  diagnosis becomes a lesson line — `3rd Missing dependency in this
+session; last resolved by: re-running npm install succeeded` — with the
+  resolution derived from a later successful run of the same command.
+  `lessonThreshold: 1` disables lessons.
+- **Session-start digest (worktree memory):** the first prompt of main
+  sessions gets a capped (≤ 8 lines) digest of the worktree's recent
+  recurring errors. `sessionMemory` (default on) switches it; subagent
+  sessions are skipped.
+- **Pending-note delivery:** bus-only errors enqueue a one-liner delivered
+  via the session prompt hook (prepended to a prompt already in flight) or
+  riding along with the next terminal injection. The plugin never sends
+  messages on its own initiative.
+- **Dedup layer:** a failed command arriving through both the terminal tool
+  and `session.shell.ended` within 5 s is classified once.
+- **Bus breadcrumbs:** session shell and permission events enrich the
+  persisted events' breadcrumb trail.
+- Persisted events now record their origin in `extra.source`
+  (`"tool"` | `"event-bus"`).
+
+### Fixed
+
+- **Dependency baseline repair:** regenerated `package-lock.json` for the
+  vitest 5 / TypeScript 6 / eslint 10 major bumps (fresh installs
+  previously failed with ERESOLVE) and added `types: ["node"]` for
+  TypeScript 6, which no longer auto-includes `@types` packages.
+- `node_eacces` no longer captures the event-bus permission format
+  (`permission denied: <action>`), which now classifies as
+  `permission_denied`.
+
 ## [0.4.1] - 2026-10-16
 
 ### Fixed

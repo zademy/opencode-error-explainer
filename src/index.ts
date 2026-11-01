@@ -21,6 +21,10 @@ import { createToolAfterHandler } from "./hooks/tool-after.js";
 import { createExplainTool } from "./tools/explain-tool.js";
 import { registerExplainCommand } from "./command/explain.js";
 import { createTrail } from "./breadcrumbs/trail.js";
+import { createLessonPolicy } from "./enrich/lessons.js";
+import { createPendingNotes } from "./bus/pending.js";
+import { createDeduper } from "./bus/dedupe.js";
+import { shouldSubscribe, subscribeBus } from "./bus/subscribe.js";
 import {
   argsOf,
   commandOf,
@@ -35,6 +39,10 @@ const log = (msg: string): void => {
   // Best-effort, non-fatal diagnostics. Goes to stderr; never throws.
   console.warn(msg);
 };
+
+function errSummary(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
 
 export default Plugin.define({
   id: "opencode-error-explainer",
@@ -52,9 +60,18 @@ export default Plugin.define({
       log,
     );
 
-    // V2 has no message-read API, so breadcrumbs come from our own record of
-    // the tool calls we already observe.
+    // Breadcrumbs come from our own record of the tool calls we observe plus,
+    // since v0.5, the OpenCode event bus (session shell + permission events).
     const trail = createTrail();
+
+    // v0.5 — shared cross-source state: lessons, pending notes, dedup.
+    const lessons =
+      opts.lessonThreshold > 1
+        ? createLessonPolicy(opts.lessonThreshold)
+        : null;
+    const pending = createPendingNotes();
+    const deduper = createDeduper();
+
     const after = createToolAfterHandler({
       patterns,
       options: opts,
@@ -63,6 +80,9 @@ export default Plugin.define({
       version: VERSION,
       worktree: directory,
       trail,
+      lessons,
+      deduper,
+      pending,
       log,
     });
 
@@ -143,6 +163,73 @@ export default Plugin.define({
         ctx.session.prompt({ sessionID, text, delivery }),
       log,
     });
+
+    // v0.5 — event bus: model/agent-layer errors, session shell commands,
+    // permission denials → same pipeline; pending notes + digest delivered
+    // through the prompt hook. Read-only subscription, never interrupts.
+    if (shouldSubscribe(opts)) {
+      subscribeBus({
+        registerEvents: (onEvent) => {
+          // The host's event surface is typed as an Effect Stream but the
+          // runtime hands plugins the promise flavor: an AsyncIterable.
+          // Consume defensively — if the shape ever differs, log and keep
+          // the terminal path working (bus capture degrades gracefully).
+          const subscribe = (
+            ctx.event as { subscribe?: (o?: unknown) => unknown }
+          ).subscribe;
+          const stream = subscribe?.();
+          const iterable = stream as AsyncIterable<unknown> | undefined;
+          if (
+            iterable &&
+            typeof iterable[Symbol.asyncIterator] === "function"
+          ) {
+            void (async () => {
+              for await (const event of iterable) {
+                onEvent(event);
+              }
+            })().catch((err) =>
+              log(`[error-explainer] event bus ended: ${errSummary(err)}`),
+            );
+          } else {
+            log(
+              "[error-explainer] event bus stream is not async-iterable; bus capture disabled",
+            );
+          }
+        },
+        registerPromptHook: (cb) => {
+          void ctx.session.hook("prompt", cb);
+        },
+        isMainSession: async (sessionID) => {
+          try {
+            const info =
+              (await (
+                ctx.session as unknown as {
+                  get?: (
+                    id: string,
+                  ) => Promise<{ parentID?: string | null } | null>;
+                }
+              ).get?.(sessionID)) ?? null;
+            // Main = no parent; unknown shape → treat as main.
+            return !info?.parentID;
+          } catch {
+            return true;
+          }
+        },
+        patterns,
+        options: opts,
+        outputDir,
+        version: VERSION,
+        worktree: directory,
+        sdkVersion: ctx.app.version,
+        trail,
+        // When lessons are off (threshold ≤ 1) the bus pipeline still needs a
+        // policy — a never-triggering one keeps bus notes off in that mode.
+        lessons: lessons ?? createLessonPolicy(Number.MAX_SAFE_INTEGER),
+        pending,
+        deduper,
+        log,
+      });
+    }
   },
 });
 

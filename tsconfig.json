@@ -6,6 +6,7 @@
     "moduleResolution": "NodeNext",
     "moduleDetection": "force",
     "strict": true,
+    "types": ["node"],
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,

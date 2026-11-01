@@ -3,8 +3,8 @@
  *
  * V1 read these back out of the host SDK (`client.session.messages`). V2's plugin
  * context has no message-reading API, so we keep our own ring buffer instead:
- * the plugin already sees every `tool.execute.before`/`execute.after` event, and
- * recording them is both cheaper and synchronous.
+ * the plugin already sees every `tool.execute.before`/`execute.after` event and,
+ * since v0.5, the event bus contributes session shell + permission breadcrumbs.
  *
  * Per-session so concurrent worktrees never bleed into each other's context.
  */

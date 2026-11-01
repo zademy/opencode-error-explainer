@@ -31,6 +31,8 @@ export interface AssembleInput {
   /** Override event_id/timestamp in tests; default = new uuid / now. */
   eventId?: string;
   timestamp?: string;
+  /** Signal origin recorded in extra.source: "tool" (default) or "event-bus". */
+  source?: string;
 }
 
 /** Map our severity onto a Sentry-ish level (fatal reserved for crashes). */
@@ -102,6 +104,8 @@ export function assembleEvent(input: AssembleInput): SentryGradeEvent {
       command: c.command,
       matched_lines: c.matchedLines.slice(0, 8),
       raw_output_excerpts: [c.raw.slice(0, 2048)],
+      /** Where the signal came from: "tool" (terminal) or "event-bus". */
+      source: input.source ?? "tool",
     },
   };
 }

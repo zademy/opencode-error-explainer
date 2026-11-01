@@ -19,6 +19,9 @@ import { gatherGit } from "../context/git.js";
 import { gatherOs, gatherRuntime } from "../context/env.js";
 import { enrichFrames } from "../context/source.js";
 import type { BreadcrumbTrail } from "../breadcrumbs/trail.js";
+import type { Deduper } from "../bus/dedupe.js";
+import type { PendingNotes } from "../bus/pending.js";
+import type { LessonPolicy } from "../enrich/lessons.js";
 import { redactSecrets } from "../enrich/redact.js";
 import { buildExplanation } from "../enrich/explainer.js";
 import { appendHistory } from "../persist/history.js";
@@ -62,14 +65,30 @@ export interface HookDeps {
   readonly worktree: string | null;
   /** Recent tool calls recorded by this plugin (null when unavailable). */
   readonly trail: BreadcrumbTrail | null;
+  /** Per-session lesson policy for repeat errors (null = lessons off). */
+  readonly lessons: LessonPolicy | null;
+  /** Tool/shell double-capture deduper (null = bus capture off). */
+  readonly deduper: Deduper | null;
+  /** Pending bus notes for ride-along delivery (null = bus capture off). */
+  readonly pending: PendingNotes | null;
   readonly log?: (msg: string) => void;
 }
 
 export function createToolAfterHandler(
   deps: HookDeps,
 ): (input: ToolAfterInput, output: ToolAfterOutput) => Promise<string | void> {
-  const { patterns, options, outputDir, version, worktree, trail, sdkVersion } =
-    deps;
+  const {
+    patterns,
+    options,
+    outputDir,
+    version,
+    worktree,
+    trail,
+    sdkVersion,
+    lessons,
+    deduper,
+    pending,
+  } = deps;
   const log = deps.log ?? ((m: string) => console.warn(m));
 
   return async function toolExecuteAfter(
@@ -98,7 +117,17 @@ export function createToolAfterHandler(
       patterns,
       options.stacks,
     );
-    if (!classification) return; // Successful or signal-less — do not pollute.
+    if (!classification) {
+      // A later successful run of the same command is the lesson's
+      // "last resolved by" source — record it before the early return.
+      // Limitation: v2 exposes no exit codes, so "no error signal" is the
+      // best proxy for success; a signal-less failure cannot be told apart
+      // and may produce a resolution line. Accepted trade-off (rare, and
+      // the resolution text only claims the re-run itself succeeded).
+      lessons?.markSuccess(input.sessionID, command);
+      return; // Successful or signal-less — do not pollute.
+    }
+    deduper?.recordToolError(command);
 
     const timestamp = new Date().toISOString();
     const stamped: Classification = { ...classification, timestamp };
@@ -204,8 +233,32 @@ export function createToolAfterHandler(
       times_seen: frequency?.times_seen ?? null,
     };
 
+    // v0.5: lesson escalation — from the configured repeat count, the first
+    // appended line becomes a lesson ("3rd X in this session; last resolved
+    // by: …") instead of the one-shot diagnosis.
+    const lessonCount =
+      lessons?.count(input.sessionID, fingerprint || stamped.id) ?? 0;
+    const lessonLine = lessons
+      ? lessons.lessonLine({
+          count: lessonCount,
+          type: stamped.type,
+          command,
+          resolution: lessons.resolutionFor(input.sessionID, command),
+        })
+      : null;
+
+    // v0.5: pending bus notes ride along above the diagnosis (fallback for
+    // sessions whose prompts the hook did not deliver). Cap at 3 one-liners
+    // per tool result; anything beyond is re-enqueued for the next ride.
+    const canAppend = options.appendMode !== "off" && options.appendToOutput;
+    const drained = canAppend ? (pending?.drain(input.sessionID) ?? []) : [];
+    const rideAlong = drained.slice(0, 3);
+    for (const line of drained.slice(3)) {
+      pending?.enqueue(input.sessionID, line);
+    }
+
     // Inline append (minimal by default — full report lives in the artifact/tool).
-    return appendInline(stamped, options);
+    return appendInline(stamped, options, lessonLine, rideAlong);
   };
 }
 
@@ -306,12 +359,21 @@ function redactClassification(c: Classification): Classification {
 function appendInline(
   c: Classification,
   options: PluginOptions,
+  lessonLine: string | null,
+  rideAlong: readonly string[],
 ): string | undefined {
   if (options.appendMode === "off" || !options.appendToOutput) return undefined;
+  const ride = rideAlong.length > 0 ? `\n${rideAlong.join("\n")}` : "";
   if (options.appendMode === "minimal") {
-    return `\n> [Error Explainer] ${c.type}: ${c.suggestion}`;
+    // On a lesson occurrence the single line IS the lesson (the diagnosis's
+    // first line would only repeat what the lesson already says).
+    const head = lessonLine
+      ? `\n> ${lessonLine}`
+      : `\n> [Error Explainer] ${c.type}: ${c.suggestion}`;
+    return `${ride}${head}`;
   }
-  return `\n${buildExplanation(c, options.verbosity)}`;
+  const head = lessonLine ? `\n> ${lessonLine}` : "";
+  return `${ride}${head}\n${buildExplanation(c, options.verbosity)}`;
 }
 
 function isTerminalTool(tool: string): boolean {
