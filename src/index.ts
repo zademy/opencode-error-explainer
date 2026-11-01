@@ -63,6 +63,9 @@ export default Plugin.define({
       version: VERSION,
       worktree: directory,
       trail,
+      lessons: null, // wired with the event bus (v0.5) in subscribeBus
+      deduper: null,
+      pending: null,
       log,
     });
 

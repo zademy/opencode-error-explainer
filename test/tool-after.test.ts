@@ -34,6 +34,9 @@ function makeHandler(
     sdkVersion: "2.0.0-test",
     worktree: null,
     trail: null,
+    lessons: null,
+    deduper: null,
+    pending: null,
     log: () => {},
   });
 }
@@ -210,5 +213,109 @@ describe("tool.execute.after handler", () => {
         expect(meta.times_seen).toBe(2);
       }
     }
+  });
+});
+
+// ── v0.5 lessons, dedup recording, pending ride-along ─────────────────────────
+
+import { createLessonPolicy } from "../src/enrich/lessons.js";
+import { createPendingNotes } from "../src/bus/pending.js";
+import { createDeduper } from "../src/bus/dedupe.js";
+import type { Deduper } from "../src/bus/dedupe.js";
+
+function makeV05Handler(
+  outputDir: string,
+  extras: {
+    lessons?: ReturnType<typeof createLessonPolicy> | null;
+    deduper?: Deduper | null;
+    pending?: ReturnType<typeof createPendingNotes> | null;
+  } = {},
+) {
+  return createToolAfterHandler({
+    patterns: BUILT_IN_PATTERNS,
+    options: { ...DEFAULT_OPTIONS },
+    outputDir,
+    version: "0.0.0-test",
+    sdkVersion: "2.0.0-test",
+    worktree: null,
+    trail: null,
+    lessons: extras.lessons ?? null,
+    deduper: extras.deduper ?? null,
+    pending: extras.pending ?? null,
+    log: () => {},
+  });
+}
+
+describe("tool.execute.after — v0.5 lesson escalation", () => {
+  const failText = "node:internal Error: Cannot find module 'express'";
+
+  it("first occurrence keeps the standard diagnosis; second replaces it with the lesson line", async () => {
+    const lessons = createLessonPolicy(2);
+    const handler = makeV05Handler(dir, { lessons });
+    const first = await handler(
+      fakeInput("node server.js"),
+      fakeOutput(failText),
+    );
+    const second = await handler(
+      fakeInput("node server.js"),
+      fakeOutput(failText),
+    );
+
+    expect(first).toContain("[Error Explainer] Missing dependency:");
+    expect(second).toContain("2nd Missing dependency in this session");
+    expect(second).not.toContain("[Error Explainer] Missing dependency:");
+  });
+
+  it("records dedup entries for classified errors", async () => {
+    const deduper = createDeduper(5000);
+    const handler = makeV05Handler(dir, { deduper });
+    await handler(fakeInput("node server.js"), fakeOutput(failText));
+    expect(deduper.isDuplicate("node server.js")).toBe(true);
+    expect(deduper.isDuplicate("npm test")).toBe(false);
+  });
+
+  it("a later successful run of the same command becomes the lesson resolution", async () => {
+    const lessons = createLessonPolicy(2);
+    const handler = makeV05Handler(dir, { lessons });
+    await handler(fakeInput("node server.js"), fakeOutput(failText));
+    await handler(
+      fakeInput("node server.js"),
+      fakeOutput("ok, listening on 3000"),
+    );
+    const third = await handler(
+      fakeInput("node server.js"),
+      fakeOutput(failText),
+    );
+    expect(third).toContain(
+      "last resolved by: re-running node server.js succeeded",
+    );
+  });
+
+  it("pending bus notes ride along above the diagnosis (max 3)", async () => {
+    const pending = createPendingNotes();
+    pending.enqueue("s1", "bus note A");
+    pending.enqueue("s1", "bus note B");
+    pending.enqueue("s1", "bus note C");
+    pending.enqueue("s1", "bus note D");
+    const handler = makeV05Handler(dir, { pending });
+    const out = fakeOutput(failText);
+    const appended = await handler(fakeInput("node server.js"), out);
+
+    expect(appended).toContain("bus note A");
+    expect(appended).toContain("bus note C");
+    expect(appended).not.toContain("bus note D");
+    // diagnosis still present below the ride-along
+    expect(appended).toContain("Missing dependency");
+  });
+
+  it("with lessons/deduper/pending null the default output is unchanged", async () => {
+    const handler = makeV05Handler(dir);
+    const appended = await handler(
+      fakeInput("node server.js"),
+      fakeOutput(failText),
+    );
+    expect(appended).toBe(
+      "\n> [Error Explainer] Missing dependency: A required module is not installed. Install it or fix the import path.",
+    );
   });
 });
