@@ -96,9 +96,7 @@ describe("createPromptHook", () => {
     await expect(
       hook({ sessionID: "s1", prompt: {} }),
     ).resolves.toBeUndefined();
-    await expect(
-      hook(null),
-    ).resolves.toBeUndefined();
+    await expect(hook(null)).resolves.toBeUndefined();
   });
 
   it("does not prepend anything when the digest is null and no notes exist", async () => {

@@ -149,6 +149,6 @@ describe("subscribeBus", () => {
     const hook = promptHooks[0] as (i: unknown) => Promise<void>;
     const input = { sessionID: "s1", prompt: { text: "hello" } };
     await hook(input);
-    expect((input.prompt).text).toContain("bus note");
+    expect(input.prompt.text).toContain("bus note");
   });
 });
