@@ -51,7 +51,10 @@ export const BUILT_IN_PATTERNS: readonly ErrorPattern[] = [
     stack: "os",
     type: "Permission denied",
     severity: "error",
-    pattern: /EACCES|permission denied/i,
+    // 'permission denied' followed by ':' is the event-bus mapper's host
+    // permission format (handled by the permission_denied pattern); bare OS
+    // denials (e.g. "permission denied, open ...") stay here.
+    pattern: /EACCES|permission denied(?!\s*:)/i,
     suggestion: "The process lacks permission for that path or operation.",
     nextSteps: [
       "Check file ownership/permissions (`ls -l`).",
@@ -425,6 +428,92 @@ export const BUILT_IN_PATTERNS: readonly ErrorPattern[] = [
     pattern: /No space left on device|disk full|ENOSPC/i,
     suggestion: "The target filesystem is out of space.",
     nextSteps: ["Free space or move the build/cache output elsewhere."],
+  },
+
+  // ── v0.5 provider / agent-layer (event bus + terminal) ────────────────────
+  {
+    id: "provider_rate_limited",
+    stack: "generic",
+    type: "Provider rate limited",
+    severity: "warning",
+    pattern:
+      /\btoo many requests\b|\brate[ -]?limit(?:ed|s)?\b|\b429\b[^\n]{0,30}\btoo many\b/i,
+    suggestion:
+      "The model provider is throttling requests. Back off and retry rather than hammering it.",
+    nextSteps: [
+      "Wait for the retry window, then retry the same request unchanged.",
+      "If it persists, reduce parallelism or switch models for this step.",
+    ],
+  },
+  {
+    id: "provider_auth_failed",
+    stack: "generic",
+    type: "Provider auth failed",
+    severity: "error",
+    pattern:
+      /\b(?:unauthorized|forbidden)\b|\binvalid[ _-]api[ _-]?key\b|\bauthentication required\b/i,
+    suggestion:
+      "The provider rejected the credentials. Check the API key or auth setup before retrying.",
+    nextSteps: [
+      "Verify the API key is set, valid, and for the right account.",
+      "Re-auth or rotate the credential, then retry once.",
+    ],
+  },
+  {
+    id: "provider_context_overflow",
+    stack: "generic",
+    type: "Context window exceeded",
+    severity: "error",
+    pattern:
+      /\bcontext (?:length|window)\b[^\n]{0,60}\b(?:exceed|limit|maximum)|\bmaximum context length\b|\bcontext_length_exceeded\b/i,
+    suggestion:
+      "The request exceeded the model's context window. Compact the session or split the task.",
+    nextSteps: [
+      "Compact the session to shrink accumulated context.",
+      "Split the work: read fewer files or chunk the input.",
+    ],
+  },
+  {
+    id: "provider_overloaded",
+    stack: "generic",
+    type: "Provider overloaded",
+    severity: "warning",
+    pattern:
+      /\bprovider overloaded\b|\boverloaded\b|\b503\b[^\n]{0,30}\b(?:service|unavailable)\b|\b529\b/i,
+    suggestion:
+      "The provider is temporarily overloaded. Retry shortly or switch models.",
+    nextSteps: [
+      "Retry after a short pause — this is transient.",
+      "If repeated, switch to another model for this step.",
+    ],
+  },
+  {
+    id: "compaction_failed",
+    stack: "generic",
+    type: "Session compaction failed",
+    severity: "error",
+    pattern: /\bcompaction failed\b|\bcompact(?:ation)? (?:failed|error)\b/i,
+    suggestion:
+      "The session could not be compacted. Reduce context by starting a fresh session or narrowing the task.",
+    nextSteps: [
+      "Start a new session and carry over only the essentials.",
+      "Close very long tool outputs before continuing.",
+    ],
+  },
+  {
+    // Anchored to the event-bus mapper format ('permission denied: ...') so it
+    // never collides with node_eacces, which owns bare OS 'permission denied'.
+    id: "permission_denied",
+    stack: "generic",
+    type: "Permission denied by host",
+    severity: "warning",
+    pattern: /\bpermission (?:denied|rejected):/i,
+    suggestion:
+      "The host denied this action — it is outside what the agent may do. Adjust the action or ask the user.",
+    nextSteps: [
+      "Check path confinement: keep reads/writes inside the worktree.",
+      "Ask the user to grant the permission or run it yourself.",
+    ],
   },
 
   // ── Generic fallbacks (lowest priority) ─────────────────────────────────────
